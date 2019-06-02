@@ -246,8 +246,8 @@ const char notesStr[2][4] = {"PIT", "VEL"};
 const char trackStr[2][4] = {"YES", "ENV"};
 const char velStr[3][7] = {"NONE","KEYVEL","WINDCC"};
 const char loopStr[4][6] = {"TRIG-", "LOOP-", "SKIP", "ALL"};
-const char modStrA[6][5] = {"----", "WIND", "MODW", "PBND", "SUS ", "MAIN"};
-const char modStrB[5][4] = {"OUT", "AMP", "PIT", "FLT", "ARP"};
+const char modStrA[2][5] = {"----", "MAIN"};
+const char modStrB[9][4] = {"WND", "MDW", "PBD", "SUS", "OUT", "AMP", "PIT", "FLT", "ARP"};
 const char modStrO[6][3] = {"P1", "P2", "M1", "M2", "M3", "M4"}; 
 
 const char recStr[5] = "*REC";
@@ -1184,7 +1184,7 @@ void __attribute__(( noinline )) checkWriteElem()
 							writeStr(2, 17, 3, tempStr);
 							break;
 							
-						case OBJ3: writeStr(2, 5, 6, (char *)velStr[(SHIFTMASK(oscInd, bitWind))? 2: SHIFTMASK(oscInd, bitKeyVel)]); break;
+						//case OBJ3: writeStr(2, 5, 6, (char *)velStr[(SHIFTMASK(oscInd, bitWind))? 2: SHIFTMASK(oscInd, bitKeyVel)]); break;
 						//case OBJ3: writeStr((char *)velStr[curMidi->velType]); break;
 						
 						case OBJ5: writeStr(3, 8, 3, (char *)yesNoStr[SHIFTMASK(oscInd, bitLgto)]); break;
@@ -1215,12 +1215,12 @@ void __attribute__(( noinline )) checkWriteElem()
 					{						
 						uint8_t screenInd = curLCD-OBJ1;
 						uint8_t srcInd = mod_src[oscInd][screenInd];
-						
-						if(srcInd < 6) strcpy(tempStr, modStrA[srcInd]);
+						uint8_t eInd = (srcInd == 0)? 0: (srcInd == MOD_MAIN_OUT)? 1 : 2;
+						if(eInd < 2) strcpy(tempStr, modStrA[eInd]);
 						else
 						{
-							uint8_t oInd = (srcInd - 6) % OSC_CNT;
-							uint8_t eInd = (srcInd -6) / OSC_CNT;
+							eInd = (--srcInd) % TOTAL_MOD_SRC;
+							uint8_t oInd = (srcInd) / TOTAL_MOD_SRC;
 							//LogTextMessage("%u, %u", oInd, eInd);
 							strCatCat((char *)modStrO[oInd], (char *)modStrB[eInd], tempStr);
 							//strcpy(tempStr, modStrB[eInd]);

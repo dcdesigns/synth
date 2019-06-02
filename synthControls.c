@@ -821,12 +821,21 @@ void handleKnobs()
 					//case EX_WAVE: updateOscTypes(waveOsc, &waveCnt, noiseOsc, &noiseCnt, bitWave); break;
 					//case EX_FILT: updateOscTypes(filtOsc, &filtCnt, nonFiltOsc, &nonFiltCnt, bitFilt); break;
 					case EX_SYNC: 
-						for(uint8_t tOsc = 0; tOsc < OSC_CHILD_CNT; tOsc++)
+						if(!isTog)
 						{
-							arp_env[tOsc].stage = MAXARP-1;
-							arp_env[tOsc].clock = 65534;
+							for(uint8_t tOsc = 0; tOsc < OSC_CHILD_CNT; tOsc++)
+							{
+								arp_env[tOsc].stage = MAXARP-1;
+								arp_env[tOsc].clock = 65534;
+							}
+							
+						}
+						else if(SHIFTMASK(MAINTOG, tog))
+						{
+							updateArpTime(oscInd, arpeggio[oscInd].BPM);
 						}
 						break;
+	
 					case EX_PATRNDCLR: 
 						if(!isTog) 
 						{
@@ -1345,7 +1354,7 @@ void handleKnobs()
 							
 							
 						//vel type
-						case KNOB5:
+						/* case KNOB5:
 						case KNOB_BUT5:
 							if(SHIFTMASK(oscInd, bitWind))
 							{
@@ -1354,7 +1363,7 @@ void handleKnobs()
 							}
 							else TOGGLEBIT(oscInd, bitKeyVel);
 							LCD_update[OBJ3] = 1;
-							break;
+							break; */
 							
 						case KNOB7:
 						case KNOB_BUT7:
@@ -1514,15 +1523,9 @@ void __attribute__(( noinline )) updateSingleMod(uint8_t modType, uint8_t destPa
 	uint8_t firstDest = firstChild[destParent];
 	
 	//simple mods
-	if(sourceIndex < 6)
+	if(sourceIndex == MOD_NONE || sourceIndex == MOD_MAIN_OUT)
 	{
-		int32_t *src;
-		switch(sourceIndex)
-		{
-			case 0: src = (modType == GATE_MOD)? &maxMod : &zeroMod;  break;
-			case 5: src = &lastMain; break;
-			default: src = &kCCs[sourceIndex - 1][destParent];
-		}
+		int32_t *src = (sourceIndex == MOD_MAIN_OUT)? &lastMain : (modType == GATE_MOD)? &maxMod : &zeroMod; 
 		for(uint8_t j = 0; j < children; j++)
 		{
 			modSrc[modType][firstDest + j] = src;
@@ -1531,25 +1534,18 @@ void __attribute__(( noinline )) updateSingleMod(uint8_t modType, uint8_t destPa
 	//osc/env mods
 	else
 	{
-		uint8_t oInd = (sourceIndex - 6) % OSC_CNT;
-		uint8_t eInd = (sourceIndex - 6) / OSC_CNT;
+		uint8_t eInd = (--sourceIndex) % TOTAL_MOD_SRC;
+		uint8_t oInd = (sourceIndex) / TOTAL_MOD_SRC;
 		uint8_t srcInc = (oInd < POLY_CNT)? 1: 0;
 		uint8_t sourceChild = firstChild[oInd];
 		for(uint8_t child = 0; child < children; child++)
 		{
-			switch(eInd)
-			{
-				//osc src
-				case 0: modSrc[modType][firstDest + child] = &lastSignal[sourceChild]; break;
-				//amp src
-				case 1: modSrc[modType][firstDest + child] = (int32_t *)&amp_env[sourceChild].val; break;
-				//pit src
-				case 2: modSrc[modType][firstDest + child] = &pit_env[sourceChild].val; break;
-				//filt src
-				case 3: modSrc[modType][firstDest + child] = &filt_env[sourceChild].val; break;
-				//arp src
-				case 4: modSrc[modType][firstDest + child] = &arp_env[sourceChild].val; break;
-			}
+			if(eInd < 4) modSrc[modType][firstDest + child] = &kCCs[eInd][oInd];
+			else if(eInd == 4) modSrc[modType][firstDest + child] = &lastSignal[sourceChild];
+			else if(eInd == 5) modSrc[modType][firstDest + child] = (int32_t *)&amp_env[sourceChild].val;
+			else if(eInd == 6) modSrc[modType][firstDest + child] = &pit_env[sourceChild].val;
+			else if(eInd == 7) modSrc[modType][firstDest + child] = &filt_env[sourceChild].val; 
+			else modSrc[modType][firstDest + child] = &arp_env[sourceChild].val;
 			sourceChild += srcInc;
 		}
 	}
@@ -1624,10 +1620,22 @@ void updateAllMod(uint8_t first, uint8_t last)
 
 void __attribute__((noinline)) updateArpTime(uint8_t osc, float newBPM)
 {
+	LogTextMessage("o %u bpm %f", osc, newBPM);
 	if(newBPM > 9999) arpeggio[osc].BPM = 9999;
 	else if(newBPM < 6) arpeggio[osc].BPM = 6;
 	else arpeggio[osc].BPM = newBPM;
 	arpeggio[osc].T = (uint16_t)((float)(180000) / arpeggio[osc].BPM);
+	
+	
+	if(SHIFTMASK(MAINTOG, bitArpSync))
+	{
+		uint8_t sz = sizeof(arpeggio[osc].BPM) + sizeof(arpeggio[osc].T);
+		//LogTextMessage("%u sz", sz);
+		for(uint8_t dstOsc = 0; dstOsc < OSC_CNT; ++dstOsc)
+		{
+			if(dstOsc != osc) memcpy(&arpeggio[dstOsc].T, &arpeggio[osc].T, sz);
+		}
+	}
 	//LCD_update[OBJ3] = 1;
 }
 

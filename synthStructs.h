@@ -35,11 +35,12 @@ struct ARP_KNOBS {
 	uint8_t steps;
 	uint8_t G;
 	uint16_t T;
+	float BPM;
 	
 	int8_t P[MAXARP];
 	uint8_t V[MAXARP];
 	int8_t E[MAXARP];
-	float BPM;	
+		
 };
 
 struct MIDI_PARAMS {

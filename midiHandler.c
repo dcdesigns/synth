@@ -13,7 +13,7 @@ uint8_t lastActive[POLY_CNT];
 
 void __attribute__(( noinline )) initOscMidi(uint8_t first, uint8_t last)
 {
-	memset(wind_gain, 0, sizeof(wind_gain));
+	//memset(wind_gain, 0, sizeof(wind_gain));
 	memset(CC_vals, 0, sizeof(CC_vals));
 	memset(susOn, 0, sizeof(susOn));
 	
@@ -126,7 +126,7 @@ void  __attribute__(( noinline )) onEvent(uint8_t startOsc, uint8_t endOsc, uint
 			if(force || !SHIFTMASK(osc, bitPoly)) children = childCnt(osc);
 			else first += noteSlot;
 			
-			uint8_t stage = (SHIFTMASK(osc, bitWind))? 1: 0;
+			//uint8_t stage = (SHIFTMASK(osc, bitWind))? 1: 0;
 			if(force || (!SHIFTMASK(osc, bitLgto) || amp_env[first].stage > 2))
 			{
 				
@@ -215,7 +215,7 @@ void  __attribute__(( noinline )) offEvent(uint8_t startOsc, uint8_t endOsc, uin
 						
 						if(force)
 						{
-							wind_gain[osc] = 0;
+							//wind_gain[osc] = 0;
 							susOn[osc] = 0;
 							notes[osc][child].priority = offInd[osc]++;
 						}
@@ -298,7 +298,7 @@ void handleNotes()
 			for(uint8_t osc = 0; osc < OSC_CNT; osc++)
 			{
 				MIDI_PARAMS *curMidi = &midi_knobs[osc];
-				uint8_t actVel = (SHIFTMASK(osc, bitWind) || !SHIFTMASK(osc, bitKeyVel))? 127 : curVel;
+				uint8_t actVel = (SHIFTMASK(osc, bitKeyVel))? curVel : 127;
 				//trigger the event for all osc that use this channel and key range
 				if((!curMidi->chan || curMidi->chan == chan) && (curMidi->keyMax >= curPitch && curMidi->keyMin <= curPitch))
 				{
@@ -361,12 +361,13 @@ void handleCCs()
 	static uint8_t curCC = 0;
 	while(midiEvents[1][curCC][0] != DEAD_MIDI_EVENT)
 	{
-		 //LogTextMessage("cc %u %u %d", midiEvents[1][curCC][0], midiEvents[1][curCC][1], midiEvents[1][curCC][2]);
+		 
 		
  		uint8_t chan = midiEvents[1][curCC][0] & 0x0F;
 		uint8_t cmd = midiEvents[1][curCC][0] & 0xF0;
 		int32_t num = midiEvents[1][curCC][1];
 		uint8_t val = midiEvents[1][curCC][2];
+		
 		
 		//int32_t gain = ___SMMUL((midiEvents[1][curCC].val - 64)<<PITCH_COARSE, GAIN[CC_gains[modType]])<<1;
 		
@@ -386,8 +387,8 @@ void handleCCs()
 					//wind
 					if(num == midi_knobs[osc].CC_nums[WND_EVENT])
 					{
-						modType = WND_EVENT;
-						wind_gain[osc] = VELGAIN[val];
+						CC_vals[WND_EVENT][osc] = VELGAIN[val];
+						//if(osc == 0) LogTextMessage("cc %u %d %d", cmd, num, val);
 						//LogTextMessage("w %u", val);
 					}
 					
@@ -410,7 +411,11 @@ void handleCCs()
 				}
 				
 				//update the generic mod value
-				if(modType != -1) CC_vals[modType][osc] = (val - 64)<<(FULL_SAT_SHIFT + 1);
+				if(modType != -1)
+				{
+					CC_vals[modType][osc] = (val - 64)<<(FULL_SAT_SHIFT + 1);
+					//if(osc == 0) LogTextMessage("cc %u %d %d", cmd, num, CC_vals[modType][osc]);
+				}
 				//___SMMUL((val - 64)<<(FULL_SAT_SHIFT + 1), GAIN[midi_knobs[osc].CC_levs[modType]])<<1;
 			} 
 		} 							

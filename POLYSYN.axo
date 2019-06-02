@@ -10,7 +10,10 @@
 		<frac32buffer name="gate" description="key pressed, no retrigger legato"/>
 		<frac32buffer name="L" description="Left"/>
 		<frac32buffer name="R" description="Right"/>
-		<int32 name="pit" description="pit"/>
+		<int32 name="pit1" description="pit1"/>
+		<int32 name="pit2" description="pit2"/>
+		<int32 name="pit3" description="pit3"/>
+		<int32 name="pit4" description="pit3"/>
 	</outlets>
 	
 	<displays/>
@@ -88,7 +91,7 @@
 			while(!chThdShouldTerminate())
 			{
 				
-				handleCCs();
+				
 				handleKnobs();
 				checkFileQueue(); 
 				checkHarmQueue(); 
@@ -166,6 +169,7 @@
 		ticks++;
 		checkSerialMidi();
 		handleNotes();
+		handleCCs();
 		scanInputs();
 		
 		
@@ -264,7 +268,11 @@
 				//kCCs[cc][osc] += ___SMMUL(CC_vals[cc][osc] - kCCs[cc][osc], seekR)<<1;
 			}
 		}
-		
+		outlet_pit1 = kCCs[WND_EVENT][0];
+		outlet_pit2 = kCCs[PB_EVENT][0];
+		outlet_pit3 = kCCs[MW_EVENT][0];
+		outlet_pit4 = kCCs[SUS_EVENT][0];
+
 
 		//pitch/filter envs
 		{
@@ -410,13 +418,13 @@
 			uint8_t first = firstChild[osc];
 			uint8_t last = ((osc < POLY_CNT)? NOTES_CNT: 1) + first;
 			uint8_t amp = SHIFTMASK(osc, bitAEnv);
-			uint8_t wind = SHIFTMASK(osc, bitWind);
+			//uint8_t wind = SHIFTMASK(osc, bitWind);
 			uint8_t poly = SHIFTMASK(osc, bitPoly);
 			uint8_t track = SHIFTMASK(osc, bitEnvs);
 			
 			
 			//neither wind nor amp env
-			if(!amp && !wind)
+			if(!amp)
 			{
 				for(uint8_t child = first; child < last; child++)
 				{
@@ -432,13 +440,13 @@
 				
 				for(uint8_t child = first; child < last; child++)
 				{
-					if(wind && (!amp || !poly || !track || curEnv->stage < 3))
+					/* if(wind && (!amp || !poly || !track || curEnv->stage < 3))
 					{
 						curEnv->goal = wind_gain[osc];
 						curEnv->rate = SEEK[10];
 						//if(!curEnv->stage) curEnv->stage = 1;
 					}
-					else
+					else */
 					{
 						uint8_t tStage = curEnv->stage;
 

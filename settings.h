@@ -139,6 +139,7 @@ static const uint8_t LCDelems = OBJ6 + 1;
 #define bitRecRyth 8
 #define bitRecVel 9 
 #define bitRoute 10
+#define bitArpSync 11
 
 //button/knob settings
 #define INPUTS_CNT 16
@@ -162,7 +163,7 @@ static const uint8_t LCDelems = OBJ6 + 1;
 #define bitPoly 17 	
 #define bitLgto 18 
 #define bitHold 19	
-#define bitWind 20
+//#define bitWind 20
 #define bitKeyVel 21
 #define bitHarms 22
 	
@@ -218,9 +219,9 @@ static const int8_t LAST_GROUP_COL[6][4] = {
 static const int8_t OTHER_GROUP[16][4] = {
 																											{E_OSC, -1, FAVS, EX_FAV4}, 			{E_OSC, -1, -1, EX_PATSVLD},
 																											{E_OSC, -1, FAVS, EX_FAV5}, 			{E_OSC, -1, -1, EX_PATRNDCLR},
-																											{E_OSC, -1, -1, EX_SYNC},				{E_OSC, -1, -1, EX_TRIG_ON},
+																											{MAINTOG, bitArpSync, -1, EX_SYNC},				{E_OSC, -1, -1, EX_TRIG_ON},
 	{E_OSC, bitWave, WAVETBL, EX_WAVE}, {E_OSC, bitPoly, PITCH, EX_POLY}, 	{E_OSC, bitNotes, NOTES, 0}, 	{E_OSC, bitHold, -1, EX_HOLD1}, 		{E_OSC, bitHarms, HARMONIC, 0},
-	{E_OSC, bitMod, MODA, 0}, 			{E_OSC, bitWind, MIDICCS, 0}, 		{E_OSC, bitEnvs, MIDIINS, 0}, 	{MAINTOG, bitHoldAll, -1, EX_HOLD_ALL}, {MAINTOG, bitSolo, -1, 0},
+	{E_OSC, bitMod, MODA, 0}, 			{E_OSC, bitKeyVel, MIDICCS, 0}, 		{E_OSC, bitEnvs, MIDIINS, 0}, 	{MAINTOG, bitHoldAll, -1, EX_HOLD_ALL}, {MAINTOG, bitSolo, -1, 0},
 };
 	
 
@@ -301,8 +302,12 @@ static const int8_t OTHER_GROUP[16][4] = {
 #define MW_EVENT 1
 #define PB_EVENT 2
 #define SUS_EVENT 3
+static const uint32_t TOTAL_MOD_SRC =  CC_CNT + 5;
 //static const uint8_t TOTAL_MODS = (OSC_CNT + CC_CNT + 2);
-static const uint8_t TOTAL_MODS = (OSC_CNT * 5 + CC_CNT + 2);
+static const uint32_t TOTAL_MODS = (OSC_CNT * TOTAL_MOD_SRC + 2);
+#define MOD_NONE 0
+#define MOD_MAIN_OUT TOTAL_MODS -1
+
 #define COPY_ALL 0
 #define COPY_PIT 1
 #define COPY_FILT 2

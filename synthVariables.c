@@ -29,7 +29,7 @@ uint8_t arp_page[OSC_CNT];
 
 
 //cc values (updated on cc input, don't need to be saved)
-int32_t wind_gain[OSC_CNT];
+//int32_t wind_gain[OSC_CNT];
 uint8_t susOn[OSC_CNT];
 int32_t CC_vals[CC_CNT][OSC_CNT];
 int32_t kCCs[CC_CNT][OSC_CNT];
