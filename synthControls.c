@@ -349,7 +349,7 @@ void __attribute__(( noinline )) checkSwitch(uint16_t *state, uint8_t ind, uint8
 void  __attribute__(( noinline )) addToInputQueue(uint8_t group, uint8_t ind, int32_t val, uint8_t isQuick)
 {
 	static uint8_t writeInd = 0;
-	
+	//LogTextMessage("g %u, ind %u, val %u, isQ %u", group, ind, val, isQuick);
 	if(inputQueue[writeInd][2] && (inputQueue[writeInd][0] != group || inputQueue[writeInd][1] != ind)) LogTextMessage("s");
 	inputQueue[writeInd][0] = group;
 	inputQueue[writeInd][1] = ind;
@@ -526,9 +526,9 @@ void __attribute__(( noinline )) routeMod(uint8_t destOsc, uint8_t bit)
 	}
 	if(ind != -1)
 	{
-		mod_src[destOsc][ind] = oscInd+6;
+		mod_src[destOsc][ind] = OSC_SRC + 1 + oscInd * TOTAL_MOD_SRC;
 		SETBIT(destOsc, bitMod);
-		updateSingleMod(ind, destOsc, oscInd+6);
+		updateSingleMod(ind, destOsc, mod_src[destOsc][ind]);
 	}	
 }
 
@@ -843,6 +843,7 @@ void handleKnobs()
 						}
 						else
 						{
+							main_clock = 1000;
 							resetPatch();
 						}
 						break;
@@ -924,7 +925,7 @@ void handleKnobs()
 				case PATCHLD:
 				{
 					uint8_t fType = (screenInd == WAVETBL)? WAVE: PATCH;
-							
+					if(fType == PATCH) main_clock = 1000;
 					incrementFileIndex(fType, inc, !(inputInd & 1));
 					FIL_update[(fType == WAVE)? oscInd: MAINTOG] = 1;//loadFile(fType, oscInd);
 					
@@ -1184,6 +1185,7 @@ void handleKnobs()
 						//track keys
 						case KNOB3:
 						case KNOB_BUT3:
+							main_clock = 1000;
 							TOGGLEBIT(oscInd, bitFTrack);
 							if(SHIFTMASK(oscInd, bitFTrack)) curFilt->FRQ = 0;
 							else curFilt->FRQ = (A4 + MIDI_KEY_0)<<PITCH_COARSE;
@@ -1541,10 +1543,10 @@ void __attribute__(( noinline )) updateSingleMod(uint8_t modType, uint8_t destPa
 		for(uint8_t child = 0; child < children; child++)
 		{
 			if(eInd < 4) modSrc[modType][firstDest + child] = &kCCs[eInd][oInd];
-			else if(eInd == 4) modSrc[modType][firstDest + child] = &lastSignal[sourceChild];
-			else if(eInd == 5) modSrc[modType][firstDest + child] = (int32_t *)&amp_env[sourceChild].val;
-			else if(eInd == 6) modSrc[modType][firstDest + child] = &pit_env[sourceChild].val;
-			else if(eInd == 7) modSrc[modType][firstDest + child] = &filt_env[sourceChild].val; 
+			else if(eInd == OSC_SRC) modSrc[modType][firstDest + child] = &lastSignal[sourceChild];
+			else if(eInd == AENV_SRC) modSrc[modType][firstDest + child] = (int32_t *)&amp_env[sourceChild].val;
+			else if(eInd == PENV_SRC) modSrc[modType][firstDest + child] = &pit_env[sourceChild].val;
+			else if(eInd == FENV_SRC) modSrc[modType][firstDest + child] = &filt_env[sourceChild].val; 
 			else modSrc[modType][firstDest + child] = &arp_env[sourceChild].val;
 			sourceChild += srcInc;
 		}

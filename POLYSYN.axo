@@ -51,7 +51,7 @@
 		uint32_t kPan[OSC_CNT];
 		//uint32_t kPanSum[OSC_CNT];
 		uint32_t kMain[OSC_CNT];
-		uint32_t kMainOut;
+		
 		uint8_t tLoops;
 		
 		
@@ -216,7 +216,19 @@
 			}
 			
 		}
-		kMainOut += ___SMMUL(GAIN[main_gain] - kMainOut, mainR)<<1;
+		if(main_clock)
+		{
+			mainR = SEEK[18];
+			main_mask = 0;
+			--main_clock;
+		}
+		else
+		{
+			mainR = SEEK[30];
+			main_mask = MAX_INT32;
+		}
+		
+		kMainOut += ___SMMUL((GAIN[main_gain] & main_mask) - kMainOut, mainR)<<1;
 			
 
 		//factor in all control-type pitch inputs (knobs) to apply a preset glide

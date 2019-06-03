@@ -302,8 +302,13 @@ static const int8_t OTHER_GROUP[16][4] = {
 #define MW_EVENT 1
 #define PB_EVENT 2
 #define SUS_EVENT 3
-static const uint32_t TOTAL_MOD_SRC =  CC_CNT + 5;
-//static const uint8_t TOTAL_MODS = (OSC_CNT + CC_CNT + 2);
+#define OSC_SRC 4
+#define AENV_SRC 5
+#define PENV_SRC 6
+#define FENV_SRC 7
+#define ARP_SRC 8
+
+static const uint32_t TOTAL_MOD_SRC =  ARP_SRC + 1;
 static const uint32_t TOTAL_MODS = (OSC_CNT * TOTAL_MOD_SRC + 2);
 #define MOD_NONE 0
 #define MOD_MAIN_OUT TOTAL_MODS -1

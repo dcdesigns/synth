@@ -5,6 +5,9 @@
 
 //synth main out
 uint8_t main_gain;
+int32_t main_mask;
+uint32_t main_clock;
+uint32_t kMainOut;
 
 //objects for every osc parent
 int32_t wavArray[OSC_CNT][WAVE_RES];
