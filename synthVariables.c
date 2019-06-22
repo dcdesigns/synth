@@ -91,7 +91,10 @@ int8_t HARM_update[OSC_CNT];
 uint8_t scanInd; //which knob/button address to check
 uint32_t ticks; //global time (used to calculate knob acceleration)
 //uint8_t showUpdate;
-
+int16_t blinkInd;
+int16_t blinkGrp;
+uint16_t routeTog;
+uint16_t drumPage;
 
 
 //file browser lists
@@ -144,6 +147,7 @@ static uint8_t indChar;
 //static uint8_t copy[3];
 //static uint8_t copyArmed;
 
+//static uint32_t poop[poopSize];
 //arrays for storing which oscillators are noise and which are wave table (rather than doing if/then on the spot)
 /* uint8_t noiseOsc[OSC_CHILD_CNT];
 uint8_t waveOsc[OSC_CHILD_CNT];

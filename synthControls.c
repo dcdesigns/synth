@@ -77,6 +77,12 @@ void initSynthStuff()
 	zeroMod = 0;
 	maxMod = 0x7FFFFFFF;
 	
+	//turn off blinking
+	blinkInd = -1;
+	blinkGrp = 0;
+	routeTog = -1;
+	drumPage = 0;
+	
 	main_gain = 127;
 	initOscMidi(0, OSC_CNT -1);
 	
@@ -309,11 +315,20 @@ void __attribute__(( noinline )) scanInputs()
 	//set the channel for the next read
 	palWriteGroup(GPIOA, 0x0F, 4, ind);
 	
+	
+	uint8_t on[4];
+	for(uint32_t i = 0; i < 4; ++i)
+	{
+		on[i] =  (LED[i] >> ind) & 1;
+	}
+	if(ind == blinkInd)  on[blinkGrp] = (ticks >> 10) & 1;
+
 	//set the LEDS
-	palWritePad(GPIOC, 4, (LED[0] >> ind) & 1);
-	palWritePad(GPIOC, 5, (LED[1] >> ind) & 1);
-	palWritePad(GPIOA, 0, (LED[2] >> ind) & 1);
-	palWritePad(GPIOA, 1, (LED[3] >> ind) & 1);
+	palWritePad(GPIOC, 4, on[0]);
+	palWritePad(GPIOC, 5, on[1]);
+	palWritePad(GPIOA, 0, on[2]);
+	palWritePad(GPIOA, 1, on[3]);
+	
 
 }
 
@@ -385,25 +400,37 @@ void  __attribute__(( noinline )) updateLEDs()
 	{
 		uint8_t isSecond = osc & 1;
 		tLed[isSecond] = 0;
-		
-		//get main toggle statuses
 		uint8_t pos;
-		for(pos= 0; pos < 7; pos++)
+		
+		if(SHIFTMASK(MAINTOG, bitDrum))
 		{
-			uint8_t isOn = SHIFTMASK(osc, BIG_GROUP[pos][0]);
-			
-			//leds that depend on other settings as well
-			switch(BIG_GROUP[pos][0])
+			int8_t *e = &arpeggio[osc].E[(drumPage << 3)];
+			for(pos= 0; pos < 8; pos++)
 			{
-				case bitMain: isOn &= ~(SHIFTMASK(MAINTOG, bitSolo) && osc != oscInd); break;
-				case bitFEnv: isOn &= SHIFTMASK(osc, bitFilt); break;
-			}
-			tLed[isSecond] |= (isOn << pos);
+				tLed[isSecond] |= *(e + pos)? (1 << pos) : 0;
+			}				
 		}
+		else
+		{
+			
+			//get main toggle statuses
+			
+			for(pos= 0; pos < 7; pos++)
+			{
+				uint8_t isOn = SHIFTMASK(osc, BIG_GROUP[pos][0]);
+				
+				//leds that depend on other settings as well
+				switch(BIG_GROUP[pos][0])
+				{
+					case bitMain: isOn &= ~(SHIFTMASK(MAINTOG, bitSolo) && osc != oscInd); break;
+					case bitFEnv: isOn &= SHIFTMASK(osc, bitFilt); break;
+				}
+				tLed[isSecond] |= (isOn << pos);
+			}
 		
-		//get last column toggle statuses
-		tLed[isSecond] |= LEDfromGroup(LAST_GROUP_COL[osc][0], pos, LAST_GROUP_COL[osc][1]);
-		
+			//get last column toggle statuses
+			tLed[isSecond] |= LEDfromGroup(LAST_GROUP_COL[osc][0], pos, LAST_GROUP_COL[osc][1]);
+		}
 		//update the LED variables (every two osc)
 		if(isSecond) LED[osc >> 1] = ~(tLed[0] | (tLed[1] << 8));
 	}
@@ -510,10 +537,20 @@ void __attribute__(( noinline )) copyOsc(uint8_t osc, uint8_t bit)
 	initPatch(osc, osc);
 }	
 
-void __attribute__(( noinline )) routeMod(uint8_t destOsc, uint8_t bit)	
+void __attribute__(( noinline )) routeMod(uint8_t destOsc, uint8_t bit, uint16_t sourceBit)	
 {
 	
 	uint8_t ind = -1;
+	uint16_t src = OSC_SRC;
+	switch(sourceBit)
+	{
+		case bitAEnv: src = AENV_SRC; break;
+		case bitPEnv: src = PENV_SRC; break;
+		case bitFEnv: src = FENV_SRC; break;
+		case bitArp: src = ARP_SRC; break;
+	}
+
+	
 	switch(bit)
 	{
 		case bitAEnv: ind = AMP_MOD; break;
@@ -526,7 +563,7 @@ void __attribute__(( noinline )) routeMod(uint8_t destOsc, uint8_t bit)
 	}
 	if(ind != -1)
 	{
-		mod_src[destOsc][ind] = OSC_SRC + 1 + oscInd * TOTAL_MOD_SRC;
+		mod_src[destOsc][ind] = src + 1 + oscInd * TOTAL_MOD_SRC;
 		SETBIT(destOsc, bitMod);
 		updateSingleMod(ind, destOsc, mod_src[destOsc][ind]);
 	}	
@@ -738,45 +775,68 @@ void handleKnobs()
 			if(inputGrp < 3)
 			{
 				uint8_t row = oscFromGrpInd(inputGrp, inputInd);
-				//uint8_t row = ((inputGrp << 4) + inputInd) >> 3;
-				
-				//columns 1-7 of main block (oscillator specific)
-				if((inputInd & 7) < 7)
+				if(SHIFTMASK(MAINTOG, bitDrum))
 				{
-					uint8_t col = (inputInd & 7);
-					osc = row;
-					tog = BIG_GROUP[col][0];
-					scrn = BIG_GROUP[col][1];
-					extra = BIG_GROUP[col][2];
+					//toggle hits
+					uint16_t eInd = (drumPage << 3) + (inputInd & 7); 
+					arpeggio[row].E[eInd] = (arpeggio[row].E[eInd])? 0 : recEnv;
 					
-					//copy if applicable and cancel any other actions
-					if(wasCopy)
-					{
-						copyOsc(osc, tog);
-						tog = -1;
-						extra = 0;
-					}
-					else if(wasRoute)
-					{
-						routeMod(osc, tog);
-						tog = -1;
-						extra = 0;
-					}
-					else if(tog == bitMain && SHIFTMASK(MAINTOG, bitSolo) && osc != oscInd) 
-					{
-						SETBIT(osc, bitMain);
-						tog = -1;
-						extra = 0;
-					}
+					tog = -1;
+					scrn = -1;
+					extra = -1;
 				}
-				
-				//column 8 of main block (varied)
 				else
 				{
-					osc = LAST_GROUP_COL[row][0];
-					tog = LAST_GROUP_COL[row][1];
-					scrn = LAST_GROUP_COL[row][2];
-					extra = LAST_GROUP_COL[row][3];
+					
+				
+					//uint8_t row = ((inputGrp << 4) + inputInd) >> 3;
+					
+					//columns 1-7 of main block (oscillator specific)
+					if((inputInd & 7) < 7)
+					{
+						uint8_t col = (inputInd & 7);
+						osc = row;
+						tog = BIG_GROUP[col][0];
+						scrn = BIG_GROUP[col][1];
+						extra = BIG_GROUP[col][2];
+						
+						//copy if applicable and cancel any other actions
+						if(wasCopy)
+						{
+							copyOsc(osc, tog);
+							tog = -1;
+							extra = 0;
+						}
+						else if(wasRoute)
+						{
+							if(osc == oscInd)
+							{
+								blinkInd = inputInd;
+								blinkGrp = inputGrp;
+								routeTog = tog;
+								wasRoute = 0;
+							}
+							else routeMod(osc, tog, routeTog);
+							tog = -1;
+							scrn = -1;
+							extra = 0;
+						}
+						else if(tog == bitMain && SHIFTMASK(MAINTOG, bitSolo) && osc != oscInd) 
+						{
+							SETBIT(osc, bitMain);
+							tog = -1;
+							extra = 0;
+						}
+					}
+					
+					//column 8 of main block (varied)
+					else
+					{
+						osc = LAST_GROUP_COL[row][0];
+						tog = LAST_GROUP_COL[row][1];
+						scrn = LAST_GROUP_COL[row][2];
+						extra = LAST_GROUP_COL[row][3];
+					}
 				}
 			}
 				
@@ -801,7 +861,15 @@ void handleKnobs()
 			//toggle stuff
 			if(tog != -1 && inputQueue[readInd][3])
 			{
-				TOGGLEBIT(osc, tog); 		
+				TOGGLEBIT(osc, tog); 	
+				
+				//default route from main of selected
+				if(tog == bitRoute)
+				{
+					blinkGrp = oscInd >> 1;
+					blinkInd = (oscInd & 1)? 8: 0;
+					routeTog = bitOsc;
+				}
 				
 				//don't change screens or osc if it's a toggle off
 				if(!SHIFTMASK(osc, tog))
@@ -872,6 +940,7 @@ void handleKnobs()
 					case EX_HOLD_ALL: offEvent(0, OSC_CNT -1, ALL_SLOTS, 0); break;
 					case EX_ARPNOTREC: scrn = (isTog)? ARPEGNOTES: ARPREC; break;
 					case EX_PATSVLD: scrn = (isTog)? PATCHSV: PATCHLD; break;
+					//case EX_DRUM: break;
 					
 
 					//case EX_AMP_SET: if(inputQueue[readInd][3]) equalizeAmp(osc); break;
@@ -887,7 +956,11 @@ void handleKnobs()
 			
 			//make sure copy and route are properly cleared after any action (except toggling them on)
 			if(wasCopy) CLEARBIT(MAINTOG, bitCopy);
-			if(wasRoute) CLEARBIT(MAINTOG, bitRoute);
+			if(wasRoute)
+			{
+				CLEARBIT(MAINTOG, bitRoute);
+				blinkInd = -1;
+			}
 			
 			updateLCDelems(SCRN, OBJ6);//memset(&LCD_update[0], 1,  LCDelems);//
 			//update leds

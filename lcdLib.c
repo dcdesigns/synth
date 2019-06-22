@@ -506,7 +506,7 @@ void __attribute__(( noinline ))  updateGraphic()
 		float scl;
 		majCycle[0] = 0;
 		uint16_t limit = ptr->T >> sh;
-		LogTextMessage("h %d %d", 0x7ffffff, 0x7fffffff>>1);
+		//LogTextMessage("h %d %d", 0x7ffffff, 0x7fffffff>>1);
 		int32_t rate = SEEK[ptr->G];
 		rate = (rate > (MAX_INT32 >>sh))? MAX_INT32 : rate <<sh;
 		uint8_t isVel = 1;
@@ -523,7 +523,7 @@ void __attribute__(( noinline ))  updateGraphic()
 		{
 			//int32_t goal = ptr->P[i]<<PITCH_COARSE; 
 			int32_t goal = (isVel)? ((int32_t)VELGAIN[ptr->V[i]]-(0x7fffffff>>1))>>3 : ptr->P[i]<<PITCH_COARSE; 
-			LogTextMessage("g %d", goal);
+			//LogTextMessage("g %d", goal);
 			int32_t diff = goal-val;	
 			uint16_t curCyc = 0;
 
@@ -1158,7 +1158,7 @@ void __attribute__(( noinline )) checkWriteElem()
 					
 					break;
 				
-				 case MIDIINS:
+				/*  case MIDIINS:
 				{
 					// "01234567890123456789"
 					// " MIDICH:@@@ HKEY:@@@",
@@ -1190,8 +1190,8 @@ void __attribute__(( noinline )) checkWriteElem()
 						case OBJ5: writeStr(3, 8, 3, (char *)yesNoStr[SHIFTMASK(oscInd, bitLgto)]); break;
 					}
 				}
-				break; 
-					
+				break;  */
+				/* 	
 				case MIDICCS:
 				{
 					// "01234567890123456789"
@@ -1203,7 +1203,7 @@ void __attribute__(( noinline )) checkWriteElem()
 					writeBasicInt((int16_t)(*(&(midi_knobs[oscInd].CC_nums[0]) + ind)), 3, 0, (ind >> 1) + 1, (ind & 0x01)? 17: 9);
 				}
 				break;
-				
+				*/
 				 case MODA:
 				{
 					// "01234567890123456789"
@@ -1230,7 +1230,7 @@ void __attribute__(( noinline )) checkWriteElem()
 					}
 				}
 				break;
-				
+				/*
 				case OUTS:
 					// "01234567890123456789"
 					// " PAN: L@@@ R@@@     ",
@@ -1242,8 +1242,8 @@ void __attribute__(( noinline )) checkWriteElem()
 						case OBJ2: writeBasicInt((int16_t)(127 - panLeft[oscInd]), 3, 0, 1, 12); break;
 					}
 					break;
-				 /*
-				case NOTES:
+				 
+				 case NOTES:
 				{
 					//"01234567890123456789"
 					//"NOTES:@@@   EDIT:@@@",

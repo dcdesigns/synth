@@ -10,10 +10,7 @@
 		<frac32buffer name="gate" description="key pressed, no retrigger legato"/>
 		<frac32buffer name="L" description="Left"/>
 		<frac32buffer name="R" description="Right"/>
-		<int32 name="pit1" description="pit1"/>
-		<int32 name="pit2" description="pit2"/>
-		<int32 name="pit3" description="pit3"/>
-		<int32 name="pit4" description="pit3"/>
+
 	</outlets>
 	
 	<displays/>
@@ -172,31 +169,14 @@
 		handleNotes();
 		handleCCs();
 		scanInputs();
-		
-		
+		//poop[poopSize -1] = ticks;
+		//outlet_pit1 = poop[poopSize -1];
 		//factor in all gain inputs (except envelope/wind)
 		uint32_t seekR = SEEK[G_RATE];
 		uint32_t mainR = SEEK[30];
 		
 		
 
-		
-		/* for(uint8_t parent = 0; parent < OSC_CNT; parent++)
-		{
-			pEnvOn[parent] = FULLMASK(parent, bitPEnv);
-			fEnvOn[parent] = FULLMASK(parent, bitFEnv);
-			arpOn[parent] = FULLMASK(parent, bitArp);
-			arpFilt[parent] = FULLMASK(parent, bitArpFilt);
-			filtOn[parent] = FULLMASK(parent, bitFilt);
-			fEnvFrq[parent] = FULLMASK(parent, bitFECut);
-			sWaveMask[parent] = FULLMASK(parent, bitWave);
-			modMask[parent] = FULLMASK(parent, bitMod);
-			curWave[parent] = (SHIFTMASK(parent, bitHarms))? &harmArray[parent][0]: &wavArray[parent][0];
-			//gateMask[parent] = modMask[parent] & mod_src[GATE_MOD][parent];
-			
-		} */
-		
-		//outlet_pit = gateMask[0];
 		
 		{
 			uint8_t isSolo = SHIFTMASK(MAINTOG, bitSolo);
@@ -281,10 +261,7 @@
 				//kCCs[cc][osc] += ___SMMUL(CC_vals[cc][osc] - kCCs[cc][osc], seekR)<<1;
 			}
 		}
-		outlet_pit1 = kCCs[WND_EVENT][0];
-		outlet_pit2 = kCCs[PB_EVENT][0];
-		outlet_pit3 = kCCs[MW_EVENT][0];
-		outlet_pit4 = kCCs[SUS_EVENT][0];
+	
 
 
 		//pitch/filter envs

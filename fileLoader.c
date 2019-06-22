@@ -232,81 +232,7 @@ void setFileIndexFromName(uint8_t fType, uint8_t osc, char *fName)
 	curFile = &files[fType][0]; 
 }
 
-/* void loadFile(uint8_t fType, uint8_t osc)
-{
-	LogTextMessage("r %u", fType);
-	char path[MAXDPATHLEN + MAXFNAMELEN];
-	filsList *curFile;
-	UINT bytesRead;
-    
-	//make sure there's useful data
-	if(browseCnt[fType].files == 0 || browseCnt[fType].dirs == 0) return;
-	
-	if(fType == WAVE) curFile = curWavFile[osc];
-	else if(fType == PATCH) curFile = curPatchFile;
-	
-	
-	//make a path to the file
-	makeTempPath(dirs[fType][curFile->dirInd].path, curFile->name, path);													
-    
-	//open the file
-	//if(f_open(&filBrowser[fType].curFile, path, FA_READ | FA_OPEN_EXISTING) != FR_OK) return;	//open the matching file
-	
-	//read the file........................................................................................................
-	if(fType == WAVE)
-	{
 
-		if(f_open(&filBrowser[WAVE].curFile, path, FA_READ | FA_OPEN_EXISTING) != FR_OK) return;	//open the  matching file
-		
-		uint16_t bytesPer = (WAVE_RES * WAVE_BYTES) >> 4;
-		uint8_t pos = 0;
-		uint8_t inc = bytesPer >> 2;
-		
-		for(uint8_t i = 0; i < 16; i++)
-		{
-			if(f_read(&filBrowser[fType].curFile, &wavArray[osc][pos], bytesPer, &bytesRead) != FR_OK) break;
-			pos += inc;
-		}
-		/* //LogTextMessage("y");
-		uint16_t bytesLeft = WAVE_RES * WAVE_BYTES;
-		uint16_t pos = 0;
-		
-		if(filBrowser[fType].curFile.fsize < bytesLeft) //if the file is smaller than expected, only read in the length of the file
-			bytesLeft = filBrowser[fType].curFile.fsize;
-
-		while (bytesLeft > 0) 
-		{
-			if(f_read(&filBrowser[fType].curFile, &wavArray[osc][pos], WAVE_BYTES, &bytesRead) != FR_OK) break; //load the file into the array piece by piece
-			else if (bytesRead < WAVE_BYTES) break;
-			bytesLeft -= bytesRead;
-			pos += 1;
-		} *
-		f_close(&filBrowser[WAVE].curFile);
-		
-	}
-	else if(fType == PATCH)
-	{
-		
-		if(f_open(&filBrowser[PATCH].curFile, path, FA_READ | FA_OPEN_EXISTING) != FR_OK) return;	//open the matching file
-		if(!writeReadPatch(0)) 
-		{
-			//LogTextMessage("u");
-			for(uint8_t i = 0; i < OSC_CNT; i++)
-			{
-				setFileIndexFromName(WAVE, i, curWavFile[i]->name);	
-				//loadFile(WAVE, i); //causing trouble!!!!!!!!!!!!!!!!!!!!
-			}
-			memset(&FIL_update[0], 1, OSC_CNT);
-			initPatch(0, OSC_CNT-1);
-			strcpy(saveName, curPatchFile->name);
-			saveNameInd = strlen(curPatchFile->name)-1;
-		}
-		f_close(&filBrowser[fType].curFile);	
-	}
-	
-
-	
-} */
 /* 
 void __attribute__(( noinline )) setCurFile(filsList *curFile, uint8_t fType)
 {
@@ -443,37 +369,6 @@ void __attribute__(( noinline )) splitDirFromPath(char *dir, char *path)
 }
 
 
-/* void  __attribute__(( noinline )) getFav(uint8_t ind)
-{
-	FIL favFile;
-	char path[MAXDPATHLEN];
-	char patch[MAXFNAMELEN];
-	UINT bytesRead;
-	makeTempPath((char*)ROOT_FOLDER, (char*)FAVS, path);
-	
-	if(f_open(&favFile, path, FA_READ | FA_OPEN_EXISTING) != FR_OK) return;
-	if(f_lseek(&favFile, MAFNAMELEN * ind) != FR_OK) return;
-	if(f_read(&favFile, &patch, MAXFNAMELEN, &bytesRead) != FR_OK) return;
-	f_close(&favFile);
-	
-	setFileIndexFromName(PATCH, 0, patch);
-	loadFile(PATCH, 0);
-}
-	
-void  __attribute__(( noinline )) setFav(uint8_t ind)
-{
-	FIL favFile;
-	char path[MAXDPATHLEN];
-	UINT bytesRead;
-	makeTempPath((char*)ROOT_FOLDER, (char*)FAVS, path);
-	
-	if(f_open(&favFile, path, FA_WRITE | FA_OPEN_ALWAYS) != FR_OK) return;
-	if(f_lseek(&favFile, MAFNAMELEN * ind) != FR_OK) return;
-	if(f_write(&favFile, curPatchFile->name, MAXFNAMELEN, &bytesRead) != FR_OK) return;
-	f_close(&favFile);
-	
-
-} */
 
 
 void  __attribute__(( noinline )) favAction(uint8_t ind, uint8_t writeIt)

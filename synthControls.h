@@ -17,7 +17,7 @@ uint16_t LEDfromGroup(int8_t osc, uint8_t ind, uint8_t tog);
 uint8_t finishRecording();
 void  __attribute__(( noinline )) toggleSelected(uint8_t osc);
 void __attribute__(( noinline )) copyOsc(uint8_t osc, uint8_t bit);	
-void __attribute__(( noinline )) routeMod(uint8_t osc, uint8_t bit);
+void __attribute__(( noinline )) routeMod(uint8_t destOsc, uint8_t bit, uint16_t sourceBit);	
 //void __attribute__(( noinline )) copyToggle(uint8_t mask, uint8_t osc);
 //void togglePitchType();
 //void __attribute__(( noinline )) updateSetGain(uint8_t firstOsc, uint8_t lastOsc);

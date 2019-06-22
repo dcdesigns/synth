@@ -140,6 +140,7 @@ static const uint8_t LCDelems = OBJ6 + 1;
 #define bitRecVel 9 
 #define bitRoute 10
 #define bitArpSync 11
+#define bitDrum 12
 
 //button/knob settings
 #define INPUTS_CNT 16
@@ -184,7 +185,8 @@ static const uint8_t LCDelems = OBJ6 + 1;
 #define EX_HOLD_ALL 14
 #define EX_ARPNOTREC 15
 #define EX_PATSVLD 16
-
+#define EX_DRUM 17
+#define poopSize 501
 
 static const float incsBPM[4] = {.1, 1, 10, 100};
 static const uint8_t posBPM[4] = {5, 3, 2, 1};
@@ -221,7 +223,7 @@ static const int8_t OTHER_GROUP[16][4] = {
 																											{E_OSC, -1, FAVS, EX_FAV5}, 			{E_OSC, -1, -1, EX_PATRNDCLR},
 																											{MAINTOG, bitArpSync, -1, EX_SYNC},				{E_OSC, -1, -1, EX_TRIG_ON},
 	{E_OSC, bitWave, WAVETBL, EX_WAVE}, {E_OSC, bitPoly, PITCH, EX_POLY}, 	{E_OSC, bitNotes, NOTES, 0}, 	{E_OSC, bitHold, -1, EX_HOLD1}, 		{E_OSC, bitHarms, HARMONIC, 0},
-	{E_OSC, bitMod, MODA, 0}, 			{E_OSC, bitKeyVel, MIDICCS, 0}, 		{E_OSC, bitEnvs, MIDIINS, 0}, 	{MAINTOG, bitHoldAll, -1, EX_HOLD_ALL}, {MAINTOG, bitSolo, -1, 0},
+	{E_OSC, bitMod, MODA, 0}, 			{E_OSC, bitKeyVel, MIDICCS, 0}, 		{E_OSC, bitEnvs, MIDIINS, 0}, 	{MAINTOG, bitDrum, ARPEGNOTES, EX_DRUM},/*{MAINTOG, bitHoldAll, -1, EX_HOLD_ALL},*/ {MAINTOG, bitSolo, -1, 0},
 };
 	
 
