@@ -6,7 +6,7 @@
 #include "./helperfunctions.c"
 
 const uint8_t maxBytes = 64;
-static uint8_t i2cWritePtr[maxBytes + 1] __attribute__ ((section (".sram2")));	//the right type of memory for i2c write buffer										
+static uint8_t i2cWritePtr[maxBytes + 1];// __attribute__ ((section (".sram2")));	//the right type of memory for i2c write buffer										
 static uint8_t *readByte;
 const uint8_t graphCols = 128;
 int8_t vals[12000] = {0};
@@ -719,7 +719,7 @@ void initLCD()
 	palSetPadMode(GPIOB, 9, PAL_MODE_ALTERNATE(4)|PAL_STM32_PUDR_PULLUP|PAL_STM32_OTYPE_OPENDRAIN);// SDA
 	
 	//start an i2c object?
-	i2cStart(&I2CD1, &i2cfg);
+	//i2cStart(&I2CD1, &i2cfg);
 	
 	//turn on backlight
 	toggleBackLight(1);
@@ -1356,7 +1356,8 @@ void  __attribute__(( noinline )) send4Bits(uint8_t data)
 	//static uint8_t *readByte;
 	
 	i2cWritePtr[0] = data | backlightStatus ;
-	i2cMasterTransmit(&I2CD1, address, i2cWritePtr, 1, readByte, 0);	
+	//i2cMasterTransmit(&I2CD1, address, i2cWritePtr, 1, readByte, 0);	
+	Wire.write(i2cWritePtr[0]);
 }
 
 void  __attribute__(( noinline )) clearFlag(uint8_t data)
@@ -1379,8 +1380,10 @@ void  __attribute__(( noinline )) send4BitsAndClear(uint8_t data)
 
 void __attribute__(( noinline ))  sendByte(uint8_t data, uint8_t mode)
 {
+	Wire.beginTransmission(address);
 	send4BitsAndClear((data&0xF0)|mode);
 	send4BitsAndClear(((data<<4)&0xF0)|mode);
+	Wire.endTransmission();
 }
 
 void __attribute__(( noinline ))  pitchStr(char *str, int32_t pitch, uint8_t isNum, uint8_t center, int32_t note)
