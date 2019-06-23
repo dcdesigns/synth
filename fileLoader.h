@@ -3,8 +3,8 @@
 
 //data structure for a file browser
 struct browseObj {
-	FILINFO curObj;
-	FIL curFile;
+	//FILINFO curObj;
+	//FIL curFile;
 };
 
 

@@ -34,6 +34,6 @@ uint8_t __attribute__(( noinline )) bounded(uint8_t val, int8_t inc, uint8_t min
 void __attribute__(( noinline )) spreadNotes(uint8_t osc, uint8_t zeroNote);
 int32_t __attribute__(( noinline )) randVal(int32_t max, uint8_t isPos);
 
-#include "./synthControls.c"
+#include "synthControls.c"
 
 #endif 

@@ -34,7 +34,7 @@ void initFILES(uint8_t fType)
 	}
 	else
 	{
-		LogTextMessage("%s", filError);
+		//LogTextMessage("%s", filError);
 		return;
 	}
 	
@@ -55,14 +55,14 @@ void initFILES(uint8_t fType)
 
 void __attribute__(( noinline )) scanDir(char *path, uint8_t fType)
 {
-	uint8_t done;
+	/* uint8_t done;
 	static uint8_t filesInDir;
 	static uint8_t dirInd;
 	char tStr[MAXDPATHLEN];
-	DIR dir;
+	//DIR dir;
 	
 	//open the path
-	if(f_opendir(&dir, path) != FR_OK) return;	
+	////if(f_opendir(&dir, path) != FR_OK) return;	
 	
 	//get the current directory index
 	dirInd = browseCnt[fType].dirs;
@@ -126,14 +126,14 @@ void __attribute__(( noinline )) scanDir(char *path, uint8_t fType)
 	browseCnt[fType].files += filesInDir;
 		
 	//reset the directory 
-	if(f_opendir(&dir, path) != FR_OK) return;
+	////if(f_opendir(&dir, path) != FR_OK) return;
 	done = 0;
 	
 	//loop through again to search sub-directories
 	while(!done)	
 	{
 		//read the next file
-		if(f_readdir(&dir, &filBrowser[fType].curObj) != FR_OK) return;		
+		////if(f_readdir(&dir, &filBrowser[fType].curObj) != FR_OK) return;		
 
 		//end of dir: exit
 		if(filBrowser[fType].curObj.fname[0] == 0) done = 1;	
@@ -147,13 +147,13 @@ void __attribute__(( noinline )) scanDir(char *path, uint8_t fType)
 			//scan the new directory
 			scanDir(tStr, fType);	
 		}
-	}
+	} */
 } 
 
 
 void __attribute__(( noinline )) incrementFileIndex(uint8_t fType, int8_t moveAmt, uint8_t findDir)
 {
-	uint8_t fileInd;
+/* 	uint8_t fileInd;
 	filsList *startFile;
 	filsList *curFile;
 	uint8_t steps;
@@ -166,14 +166,7 @@ void __attribute__(( noinline )) incrementFileIndex(uint8_t fType, int8_t moveAm
 
 	if(fType == WAVE) startFile = curWavFile[oscInd];
 	else if(fType == PATCH) startFile = curPatchFile;
-/* 	if(fType == WAVE) startFile = curWavFile[oscInd];
-	else if(fType == PATCH) startFile = curPatchFile;
-	else
-	{
-		//LogTextMessage("file type? %d", fType);
-		return;
-	} */
-	
+
 	curFile = startFile;
 	steps = (moveAmt < 0)? -moveAmt: moveAmt;
 	//LogTextMessage("%d", moveAmt);
@@ -196,12 +189,12 @@ void __attribute__(( noinline )) incrementFileIndex(uint8_t fType, int8_t moveAm
 	{
 		//LogTextMessage("file type? %d", fType);
 		return;
-	}
+	} */
 }
 
 void setFileIndexFromName(uint8_t fType, uint8_t osc, char *fName)
 {
-	char name[MAXFNAMELEN];
+/* 	char name[MAXFNAMELEN];
 	filsList *curFile;
     
 	//make sure there's useful data
@@ -228,8 +221,8 @@ void setFileIndexFromName(uint8_t fType, uint8_t osc, char *fName)
 		}
 		curFile = curFile->next;
 	}
-	LogTextMessage("%s", filError);
-	curFile = &files[fType][0]; 
+	//LogTextMessage("%s", filError);
+	curFile = &files[fType][0];  */
 }
 
 
@@ -243,7 +236,7 @@ void __attribute__(( noinline )) setCurFile(filsList *curFile, uint8_t fType)
 
 uint8_t savePatch()
 {
-	UINT bytesRead;
+/* 	UINT bytesRead;
 	char path[MAXDPATHLEN + MAXFNAMELEN];
 	char reviseName[MAXFNAMELEN];
 	uint8_t fileInd;
@@ -330,15 +323,15 @@ uint8_t savePatch()
 	
 	
 	//create the file
-	if(f_open(&filBrowser[PATCH].curFile, path, FA_CREATE_ALWAYS | FA_READ | FA_WRITE) != FR_OK) return 0;
+	////if(f_open(&filBrowser[PATCH].curFile, path, FA_CREATE_ALWAYS | FA_READ | FA_WRITE) != FR_OK) return 0;
 	
 	if(!writeReadPatch(1)) curPatchFile = &files[PATCH][fileInd];
 	
-	f_close(&filBrowser[PATCH].curFile);
+	////f_close(&filBrowser[PATCH].curFile);
 	
 	//set the new file as the current loaded patch index
 	
-	
+	 */
 	return 1;
 }
 
@@ -374,7 +367,7 @@ void __attribute__(( noinline )) splitDirFromPath(char *dir, char *path)
 void  __attribute__(( noinline )) favAction(uint8_t ind, uint8_t writeIt)
 {
 	//LogTextMessage("h");
-
+/* 
 	char path[MAXDPATHLEN];
 	char patch[MAXFNAMELEN];
 	UINT bytesRead;
@@ -382,38 +375,38 @@ void  __attribute__(( noinline )) favAction(uint8_t ind, uint8_t writeIt)
 	uint8_t res;
 	makeTempPath((char*)ROOT_FOLDER, (char*)FAVS_FILE, path);
 	//LogTextMessage("p %s", path);
-	res = f_open(&filBrowser[PATCH].curFile, path, mode);
+	//res = f_open(&filBrowser[PATCH].curFile, path, mode);
 	if(!res) 
 	{
-		res = f_lseek(&filBrowser[PATCH].curFile, MAXFNAMELEN * ind);
-		if(writeIt) res =  f_write(&filBrowser[PATCH].curFile, curPatchFile->name, MAXFNAMELEN, &bytesRead);
-		else res = f_read(&filBrowser[PATCH].curFile, &patch, MAXFNAMELEN, &bytesRead);
+		////res = f_lseek(&filBrowser[PATCH].curFile, MAXFNAMELEN * ind);
+		////if(writeIt) res =  f_write(&filBrowser[PATCH].curFile, curPatchFile->name, MAXFNAMELEN, &bytesRead);
+		////else res = f_read(&filBrowser[PATCH].curFile, &patch, MAXFNAMELEN, &bytesRead);
 	}
-	f_close(&filBrowser[PATCH].curFile);
+	////f_close(&filBrowser[PATCH].curFile);
 	
 	if(!res && !writeIt)
 	{
 		//LogTextMessage("%s", patch);
 		setFileIndexFromName(PATCH, 0, patch);
 		FIL_update[MAINTOG] = 1;
-	}
+	} */
 
 }
 
-
+/* 
 uint8_t __attribute__(( noinline )) patchReadWrite(void *var, uint16_t size, uint8_t isWrite)
 {
 	UINT bytes;
-	if(isWrite) return f_write(&filBrowser[PATCH].curFile, var, size, &bytes);
-	else return f_read(&filBrowser[PATCH].curFile, var, size, &bytes);
+	////if(isWrite) return f_write(&filBrowser[PATCH].curFile, var, size, &bytes);
+	////else return f_read(&filBrowser[PATCH].curFile, var, size, &bytes);
 }
-	
+	 */
 
 	
 uint8_t __attribute__(( noinline )) writeReadPatch(uint8_t isWrite)
 {
 	
-	UINT bytes;
+/* 	UINT bytes;
 
 	for(uint8_t i = 0; i < ptrCnt; i++)
 	{
@@ -423,8 +416,6 @@ uint8_t __attribute__(( noinline )) writeReadPatch(uint8_t isWrite)
 		{
 			uint8_t amt = (rem < 200)? rem: 200;
 			patchReadWrite(pos, amt, isWrite);
-			/* if(isWrite)  f_write(&filBrowser[PATCH].curFile, pos, amt, &bytes);
-			else  f_read(&filBrowser[PATCH].curFile, pos, amt, &bytes); */
 			pos += amt;
 			rem -= amt;
 		}
@@ -439,13 +430,13 @@ uint8_t __attribute__(( noinline )) writeReadPatch(uint8_t isWrite)
 		patchReadWrite(wavFil, MAXFNAMELEN, isWrite);//) return 1;		
 		if(!isWrite) setFileIndexFromName(WAVE, i, wavFil);	
 	}
-
+ */
 }
 
 
 void __attribute__(( noinline )) checkFileQueue()
 {
-	static uint8_t curFIL = 0;
+/* 	static uint8_t curFIL = 0;
 
 	if(FIL_update[curFIL] > 0)
 	{
@@ -476,7 +467,7 @@ void __attribute__(( noinline )) checkFileQueue()
 			makeTempPath(dirs[fType][curFile->dirInd].path, curFile->name, path);													
 		
 			//open the file
-			if(f_open(&filBrowser[fType].curFile, path, FA_READ | FA_OPEN_EXISTING) != FR_OK) return;
+			////if(f_open(&filBrowser[fType].curFile, path, FA_READ | FA_OPEN_EXISTING) != FR_OK) return;
 		
 			//read the file
 			if(fType == WAVE)
@@ -489,8 +480,8 @@ void __attribute__(( noinline )) checkFileQueue()
 
 				while (bytesLeft > 0) 
 				{
-					if(f_read(&filBrowser[fType].curFile, &wavArray[curFIL][pos], WAVE_BYTES, &bytesRead) != FR_OK) break; //load the file into the array piece by piece
-					else if (bytesRead < WAVE_BYTES) break;
+					////if(f_read(&filBrowser[fType].curFile, &wavArray[curFIL][pos], WAVE_BYTES, &bytesRead) != FR_OK) break; //load the file into the array piece by piece
+					////else if (bytesRead < WAVE_BYTES) break;
 					bytesLeft -= bytesRead;
 					pos += 1;
 				} 		
@@ -499,20 +490,16 @@ void __attribute__(( noinline )) checkFileQueue()
 			else if(fType == PATCH)
 			{
 				writeReadPatch(0);
-				/* for(uint8_t i = 0; i < OSC_CNT; i++)
-				{
-					setFileIndexFromName(WAVE, i, curWavFile[i]->name);	
-				} */
-				//memset(&FIL_update[0], 1, OSC_CNT);
+			
 				initPatch(0, OSC_CNT-1);
 				strcpy(saveName, curPatchFile->name);
 				saveNameInd = strlen(curPatchFile->name)-1;	
 			}
 				
-			f_close(&filBrowser[fType].curFile);
+			////f_close(&filBrowser[fType].curFile);
 		} 
 	}
-	curFIL = indexIncrement(curFIL, 1, OSC_CNT + 1);
+	curFIL = indexIncrement(curFIL, 1, OSC_CNT + 1); */
 }
 
 #endif

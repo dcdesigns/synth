@@ -2,8 +2,8 @@
 #define MIDIHANDLER_C
 
 
-#include "./settings.h"
-#include "./helperfunctions.c"
+#include "settings.h"
+#include "helperfunctions.c"
 
 NOTE_SLOT notes[OSC_CNT][NOTES_CNT];
 uint16_t onInd[OSC_CNT];
@@ -73,7 +73,7 @@ void  __attribute__(( noinline )) togglePolyMono(uint8_t startOsc, uint8_t endOs
 			for(uint8_t child = 0; child < children; child++)
 			{
 				note[first + child] += monoPitch[osc];
-				vel[first + child] = __SSAT(vel[first + child] + monoVel[osc], 8);
+				////vel[first + child] = __SSAT(vel[first + child] + monoVel[osc], 8);
 				//vel[first + child] += monoVel[osc];
 				//LogTextMessage("%d, %d", note[first + child], vel[first + child]);
 			}
@@ -239,8 +239,8 @@ void  __attribute__(( noinline )) addToNotesQueue(uint8_t status, uint8_t data1,
 	else if(upr == NOTEON || upr == NOTEOFF) {ind = &writeNoteInd; type = 0;}
 	else { ind = &writeCCInd; type = 1;}
 
-	if(midiEvents[type][*ind][0] != DEAD_MIDI_EVENT)
-		LogTextMessage("m- %u: %u %u", upr, data1);
+	////if(midiEvents[type][*ind][0] != DEAD_MIDI_EVENT)
+		////LogTextMessage("m- %u: %u %u", upr, data1);
 	midiEvents[type][*ind][0] = status;
 	midiEvents[type][*ind][1] = data1;//__USAT(data1 + MIDI_OFF, 7);
 	midiEvents[type][*ind][2] = data2;

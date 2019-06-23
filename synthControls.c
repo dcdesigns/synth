@@ -2,17 +2,18 @@
 #define SYNTHCONTROLS_C
 
 
-#include "./settings.h"
-#include "./helperfunctions.c"
-#include "./fileLoader.h"
-#include "./pitchTables.c"
-#include "./lcdLib.h"
-#include "./midiHandler.h"
+#include "settings.h"
+#include "helperfunctions.c"
+#include "fileLoader.h"
+#include "pitchTables.c"
+#include "lcdLib.h"
+#include "midiHandler.h"
 
-	
+
 //runs once at startup
 void initSynthStuff()
 {	
+	
 	//get the pointers to the settings variables
 	void *ptrs[] = {
 		toggles, osc_gain, panLeft, midi_knobs,
@@ -25,9 +26,31 @@ void initSynthStuff()
 
 	memcpy(varPtrs, ptrs, sizeof(ptrs));
 	
+	//setup pin inputs/outputs
 	
+
+	//Knob inputs
+	for(uint8_t i = 0; i < sizeof(KB_PINS); ++i)
+	{
+		pinMode(KB_PINS[i], INPUT);
+	}
+	//MX inputs
+	for(uint8_t i = 0; i < sizeof(MX_PINS); ++i)
+	{
+		pinMode(MX_PINS[i], INPUT);
+	}
+	//LED outputs
+	for(uint8_t i = 0; i < sizeof(LED_PINS); ++i)
+	{
+		pinMode(LED_PINS[i], OUTPUT);
+	}
+	//ADDR outups
+	for(uint8_t i = 0; i < sizeof(ADDR_PINS); ++i)
+	{
+		pinMode(ADDR_PINS[i], OUTPUT);
+	}
 	//set up channel selector output pins
-	palSetGroupMode(GPIOA, 0x0F, 4, PAL_MODE_OUTPUT_PUSHPULL);
+	/* palSetGroupMode(GPIOA, 0x0F, 4, PAL_MODE_OUTPUT_PUSHPULL);
 	palWriteGroup(GPIOA, 0x0F, 4, 0);
 	
 	//set up LED output pins
@@ -41,7 +64,7 @@ void initSynthStuff()
 	
 	//set up knob input pins
 	palSetGroupMode(GPIOB, 0x03, 0, PAL_MODE_INPUT);
-	palSetPadMode(GPIOA, 2, PAL_MODE_INPUT);
+	palSetPadMode(GPIOA, 2, PAL_MODE_INPUT); */
 	
 	
 	//clear the note and cc events arrays
@@ -89,7 +112,6 @@ void initSynthStuff()
 }	
 
 
-	
 //runs when a patch is loaded/reset/randomized	
 void __attribute__(( noinline )) initPatch(uint8_t first, uint8_t last)
 {
@@ -224,7 +246,7 @@ void __attribute__(( noinline )) checkHarmQueue()
 			//add in the current partial
 			for(uint16_t i = 0; i < WAVE_RES; i++)
 			{
-				tArr[i] = __SSAT(tArr[i] + (___SMMUL(wavArray[curO][j], gain)), 31);	
+				tArr[i] = __SSAT32(tArr[i], (___SMMUL(wavArray[curO][j], gain)), 32);	
 				j = (j + curPart) & WAVE_RES_MASK;
 			}
 
@@ -260,7 +282,9 @@ void __attribute__(( noinline )) scanInputs()
 	else if(knobInd == 7) knobInd = 6;
 
 	//check for knob turns
-	uint8_t tIn = palReadGroup(GPIOB, 0x03, 0);
+	uint8_t tIn = digitalRead(KB_PINS[0]);
+	tIn |= digitalRead(KB_PINS[1]) << 1;
+	
 	if((tIn) != (KNOB_A[knobInd]))
 	{
 		uint8_t chg = tIn ^ KNOB_A[knobInd];
@@ -268,7 +292,7 @@ void __attribute__(( noinline )) scanInputs()
 		uint32_t elapsed = ticks - KNOB_TICKS[knobInd];
 		
 		//starting a new turn, reset direction
-		if(elapsed > 400) KNOB_DIR[knobInd] = 0;
+		if(elapsed > DEAD_LOOPS) KNOB_DIR[knobInd] = 0;
 		
 		//both signals changed--garbage data-- add it as an acceleration of the current direction
 		if(chg == 3) 
@@ -295,25 +319,36 @@ void __attribute__(( noinline )) scanInputs()
 		}
 		
 		//apply knob turns
-		if(isDone && KNOB_DIR[knobInd]) addToInputQueue(KNOB_GRP, knobInd, KNOB_DIR[knobInd]<<(isDone-1), 0);
+		if(isDone && KNOB_DIR[knobInd])
+		{
+			//Serial.println(KNOB_DIR[knobInd]<<(isDone-1));
+			addToInputQueue(KNOB_GRP, knobInd, KNOB_DIR[knobInd]<<(isDone-1), 0);
+		}
 
 		KNOB_A[knobInd] = tIn;
 		KNOB_TICKS[knobInd] = ticks;
 	}
 
 	//check for knob click
-	if(!grp && (ind & 8)) checkSwitch(&KNOB_S, knobInd + 8, palReadPad(GPIOA, 2), KNOB_GRP);
+	if(!grp && (ind & 8)) checkSwitch(&KNOB_S, knobInd + 8, digitalRead(KB_PINS[2]), KNOB_GRP);
+		//checkSwitch(&KNOB_S, knobInd + 8, palReadPad(GPIOA, 2), KNOB_GRP);
 
 	
 	//check for MX input
-	checkSwitch(&MX[grp], ind, palReadPad(GPIOC, grp), grp);
-
+	checkSwitch(&MX[grp], ind,  digitalRead(MX_PINS[grp]), grp);
+	//checkSwitch(&MX[grp], ind, palReadPad(GPIOC, grp), grp);
+	//if(grp == 0 && ind == 0) Serial.println(digitalRead(MX_PINS[grp]));
+	
 	//increment channel
 	ind = (ind+1) & 0x0F;
 	if(!ind) ++grp &= 0x03;
 	
 	//set the channel for the next read
-	palWriteGroup(GPIOA, 0x0F, 4, ind);
+	for(uint32_t i = 0; i < 4; ++i)
+	{
+		digitalWrite(ADDR_PINS[i], ((ind >> i) & 1));
+	}
+	//palWriteGroup(GPIOA, 0x0F, 4, ind);
 	
 	
 	uint8_t on[4];
@@ -324,10 +359,15 @@ void __attribute__(( noinline )) scanInputs()
 	if(ind == blinkInd)  on[blinkGrp] = (ticks >> 10) & 1;
 
 	//set the LEDS
-	palWritePad(GPIOC, 4, on[0]);
-	palWritePad(GPIOC, 5, on[1]);
-	palWritePad(GPIOA, 0, on[2]);
-	palWritePad(GPIOA, 1, on[3]);
+	for(uint32_t i = 0; i < 4; ++i)
+	{
+		digitalWrite(LED_PINS[i], (on[i])? HIGH: LOW);
+		//digitalWrite(LED_PINS[i], LOW);
+	}
+	//palWritePad(GPIOC, 4, on[0]);
+	//palWritePad(GPIOC, 5, on[1]);
+	//palWritePad(GPIOA, 0, on[2]);
+	//palWritePad(GPIOA, 1, on[3]);
 	
 
 }
@@ -341,6 +381,7 @@ void __attribute__(( noinline )) checkSwitch(uint16_t *state, uint8_t ind, uint8
 	
 	if(sig != ((*state >> ind) & 1))
 	{
+		//Serial.println("change");
 		*state ^= (1 << ind);
 		if(!sig) 
 		{
@@ -349,12 +390,14 @@ void __attribute__(( noinline )) checkSwitch(uint16_t *state, uint8_t ind, uint8
 		}
 		else if(!((held[group] >> ind) & 1)) 
 		{
+			Serial.println("sending tog");
 			addToInputQueue(group, ind, 1, 1);
 		}
 	}
 	
-	else if(!((*state >> ind) & 1) && !((held[group] >> ind) & 1) && ticks-timer[group] > HOLD_TIME)
+	else if(!((*state >> ind) & 1) && !((held[group] >> ind) & 1) && ticks-timer[group] > HOLD_LOOPS)
 	{
+		Serial.println("sending held");
 		held[group] |= (1 << ind);
 		addToInputQueue(group, ind, 1, 0);
 	}
@@ -365,7 +408,7 @@ void  __attribute__(( noinline )) addToInputQueue(uint8_t group, uint8_t ind, in
 {
 	static uint8_t writeInd = 0;
 	//LogTextMessage("g %u, ind %u, val %u, isQ %u", group, ind, val, isQuick);
-	if(inputQueue[writeInd][2] && (inputQueue[writeInd][0] != group || inputQueue[writeInd][1] != ind)) LogTextMessage("s");
+	//if(inputQueue[writeInd][2] && (inputQueue[writeInd][0] != group || inputQueue[writeInd][1] != ind)) LogTextMessage("s");
 	inputQueue[writeInd][0] = group;
 	inputQueue[writeInd][1] = ind;
 	inputQueue[writeInd][2] += val;
@@ -735,7 +778,7 @@ void __attribute__(( noinline )) updateUINT8val(uint8_t *val, int8_t inc, uint8_
 		if(*val == 0) *val = 127;
 		else *val = 0;	
 	}
-	else *val = __USAT(*val + inc, 7);
+	else *val = __USAT8(*val, inc, 7);
 	LCD_update[LCD] = 1;//*val;
 }
 
@@ -745,6 +788,7 @@ void handleKnobs()
 
 	if(inputQueue[readInd][2])
 	{
+		Serial.println(inputQueue[readInd][2]);
 		GRAPH_update = 1;
 		//LogTextMessage("h%u",inputQueue[readInd][0]);
 		uint8_t inputGrp = inputQueue[readInd][0];
@@ -977,7 +1021,7 @@ void handleKnobs()
 			if(inputInd & 8) inc = -127;
 			{
 				uint8_t *lvl = (isMainLVL)? &main_gain: & osc_gain[oscInd];
-				*lvl = __USAT(*lvl + inc, 7); 
+				*lvl = __USAT8(*lvl, inc, 7); 
 			}
 			LCD_update[LVL] = 1;
 		}
@@ -1033,7 +1077,7 @@ void handleKnobs()
 							inc = inc<<PITCH_FINE_RES;
 						case KNOB6:
 							inc = inc<<PITCH_FINE;
-							curPits->pitch = __USAT(curPits->pitch + inc, PITCH_SAT);
+							curPits->pitch = __USAT32(curPits->pitch, inc, PITCH_SAT);
 							LCD_update[OBJ3] = 1;
 							break;
 						
@@ -1085,7 +1129,7 @@ void handleKnobs()
 							inc = inc<<PITCH_FINE_RES;
 						case KNOB6:
 							inc = inc<<PITCH_FINE;
-							curEnv->pitch[envInd] = __SSAT(curEnv->pitch[envInd] + inc, 29);
+							curEnv->pitch[envInd] = __SSAT32(curEnv->pitch[envInd], inc, PITCH_SAT-1);
 							LCD_update[OBJ3] = 1;
 							break;
 						
@@ -1202,9 +1246,9 @@ void handleKnobs()
 							if(stepInd <= curArp->steps)
 							{
 								if(inputInd > KNOB8) arpToggle[posInd] = indexIncrement(arpToggle[posInd], inc, (SHIFTMASK(oscInd, bitArpFilt))? 2: 3);
-								else if(arpToggle[posInd] == PIT_TOG) curArp->P[stepInd] = __SSAT(curArp->P[stepInd] + inc, 8);
-								else if(arpToggle[posInd] == ENV_TOG) curArp->E[stepInd] = (curArp->E[stepInd] + inc) & 0x07;
-								else curArp->V[stepInd] = __USAT(curArp->V[stepInd] + inc, 7);
+								else if(arpToggle[posInd] == PIT_TOG) curArp->P[stepInd] = __SSAT32(curArp->P[stepInd], inc, 7);
+								else if(arpToggle[posInd] == ENV_TOG) curArp->E[stepInd] = (curArp->E[stepInd], inc) & 0x07;
+								else curArp->V[stepInd] = __USAT8(curArp->V[stepInd], inc, 7);
 								LCD_update[OBJ3 + posInd] = 1;
 							}
 							break;						
@@ -1279,8 +1323,8 @@ void handleKnobs()
 							inc = inc<<PITCH_FINE_RES;
 						case KNOB6:
 							inc = inc<<PITCH_FINE;
-							if(SHIFTMASK(oscInd, bitFTrack)) curFilt->FRQ = __SSAT(curFilt->FRQ + inc, PITCH_SAT);
-							else curFilt->FRQ = __USAT(curFilt->FRQ + inc, PITCH_SAT);
+							if(SHIFTMASK(oscInd, bitFTrack)) curFilt->FRQ = __SSAT32(curFilt->FRQ, inc, PITCH_SAT-1);
+							else curFilt->FRQ = __USAT32(curFilt->FRQ, inc, PITCH_SAT);
 							LCD_update[OBJ3] = 1;
 							break;
 						
@@ -1482,7 +1526,7 @@ void handleKnobs()
 						panLeft[oscInd] = 64;//((inputInd - KNOB3) & 1)? ((panLeft[oscInd] == 0)? 127 : (panLeft[oscInd] > 64)? 64: 0;) : 
 																	//((panLeft[oscInd] == 127)? 0 : (panLeft[oscInd] < 64)? 64: 127);
 					}
-					else panLeft[oscInd] = __USAT(panLeft[oscInd] - inc, 7);
+					else panLeft[oscInd] = __USAT8(panLeft[oscInd], - inc, 7);
 					updateLCDelems(OBJ1, OBJ2);//memset(&LCD_update[OBJ1], 1, 2);
 				}
 				break;
@@ -1533,9 +1577,9 @@ void handleKnobs()
 									if(!notesTog)
 									{
 										int32_t offPit = pit_knobs[oscInd].pitch + monoPitch[oscInd];
-										note[child] = __USAT(offPit + note[child] + (inc<<pitchShift), 29) - offPit;
+										note[child] = __USAT32(offPit + note[child], (inc<<pitchShift), PITCH_SAT) - offPit;
 									}
-									else vel[child] = __USAT(vel[child] + monoVel[oscInd] + inc, 7) - monoVel[oscInd];
+									else vel[child] = __USAT8(vel[child] + monoVel[oscInd], inc, 7) - monoVel[oscInd];
 								}
 							}
 							break;
@@ -1556,29 +1600,7 @@ void handleKnobs()
 					HARM_update[oscInd] = -1;
 				}
 				break;
-				/* {
-					// "PRTL1 @@@   *CAPTURE",
-					// "STEP @@@  TOTCNT @@@",
-					// "GAIN1 @@@  GAINL @@@"
-					
-					uint8_t *curPtr = &harmParams[oscInd].first;
-					if(inputInd != KNOB4)
-					{
-						if(inputInd == KNOB_BUT4)
-						{
-							//capture
-						}
-						else
-						{
-							done = knobPos(KNOB3, inputInd);
-							LCD_update[OBJ1 + done] = 1;
-							if(done) done -= 1;
-							*(curPtr + done) = __USAT(*(curPtr + done) + inc, 7);
-							HARM_update[oscInd][0] = 0;
-						}
-					}
-				}
-				break; */
+
 				
 				
 			}
@@ -1695,7 +1717,7 @@ void updateAllMod(uint8_t first, uint8_t last)
 
 void __attribute__((noinline)) updateArpTime(uint8_t osc, float newBPM)
 {
-	LogTextMessage("o %u bpm %f", osc, newBPM);
+	//LogTextMessage("o %u bpm %f", osc, newBPM);
 	if(newBPM > 9999) arpeggio[osc].BPM = 9999;
 	else if(newBPM < 6) arpeggio[osc].BPM = 6;
 	else arpeggio[osc].BPM = newBPM;

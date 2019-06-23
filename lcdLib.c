@@ -2,10 +2,12 @@
 #define LCDLIB_C
 
 
-#include "./settings.h"
-#include "./helperfunctions.c"
+#include "settings.h"
+#include "helperfunctions.c"
+#include "pitchTables.c"
 
-const uint8_t maxBytes = 64;
+
+const uint8_t maxBytes = 16;
 static uint8_t i2cWritePtr[maxBytes + 1];// __attribute__ ((section (".sram2")));	//the right type of memory for i2c write buffer										
 static uint8_t *readByte;
 const uint8_t graphCols = 128;
@@ -262,17 +264,20 @@ const char units[3][3] = {"s", "Hz", "kH"};
 //LCDelem LCD_layout[ENCODERS + 3];
 static int8_t backlightStatus;										//backlight setting
 static int8_t displayStatus;										//display setting
-static const I2CConfig i2cfg = {									//i2c object
+/* static const I2CConfig i2cfg = {									//i2c object
 	OPMODE_I2C,
 	100000,			// 100000 is the value of the Arduino Wire library
 	FAST_DUTY_CYCLE_2,	
-};
+}; */
 
 void __attribute__(( noinline )) sendGraphicCmd(uint8_t byte)
 {
 	i2cWritePtr[0] = 0x80;
 	i2cWritePtr[1] = byte;
-	i2cMasterTransmit(&I2CD1, 0x3c, i2cWritePtr, 2, readByte, 0);
+	Wire.beginTransmission(GRAPHIC_ADDR);
+	Wire.write(i2cWritePtr, 2);
+	Wire.endTransmission();
+	//i2cMasterTransmit(&I2CD1, 0x3c, i2cWritePtr, 2, readByte, 0);
 }
 
 
@@ -298,7 +303,7 @@ void __attribute__(( noinline ))  updateGraphic()
 		uint8_t curVal = 0;
 		uint32_t val = 0;
 		
-		//attack
+		// attack
 		vals[0] = val;
 		majCycle[0] = 0;
 		uint32_t att = (ATTACK_K[*ptr] < MAX_INT32>>sh)? ATTACK_K[*ptr]<<sh: MAX_INT32;
@@ -311,7 +316,7 @@ void __attribute__(( noinline ))  updateGraphic()
 		}
 		majCycle[1] = cycles;
 		
-		//remaining portions
+		// remaining portions
 		for(uint8_t i = 0; i < 3; i++)
 		{
 			int32_t goal;
@@ -339,22 +344,22 @@ void __attribute__(( noinline ))  updateGraphic()
 			suslen = graphCols - cycles;
 		}
 		
-		//insert sus line and add an extra slot (since we count one extra cycle)
+		// insert sus line and add an extra slot (since we count one extra cycle)
 		majCycle[5] = majCycle[4];
 		majCycle[6] = majCycle[4];
 		majCycle[4] = suslen;
 		
 		
-		//get the rounded versions of major points (to make sure everything gets visible)
+		// get the rounded versions of major points (to make sure everything gets visible)
 		for(uint8_t i = 0; i < 7; i++)
 		{
 			majPos[i] = float(majCycle[i])/perCol;
 		}
 		
-		//get the interpolated graph points
+		// get the interpolated graph points
 		for(uint8_t i = 0; i < graphCols+1; i++)
 		{
-			//if we're on the sus line, don't increment the cycle and hold the same value
+			// if we're on the sus line, don't increment the cycle and hold the same value
 			if(majInd == 4)
 			{
 				if(!(--suslen)) majInd++;
@@ -363,7 +368,7 @@ void __attribute__(( noinline ))  updateGraphic()
 			{
 				uint16_t ind = curCycle;
 				
-				//if we're at a major point, ignore the actual cycle and use the major cycle
+				// if we're at a major point, ignore the actual cycle and use the major cycle
 				if(curPos >= majPos[majInd])
 				{
 					ind = majCycle[majInd];
@@ -378,11 +383,7 @@ void __attribute__(( noinline ))  updateGraphic()
 	}
 	else if(screenInd == PITENV || screenInd == FILTENV)
 	{
-		/* struct PIT_ENV_KNOBS {
-			uint8_t time[FREE_STAGES];
-			uint8_t glide[FREE_STAGES + 2];
-			int32_t pitch[FREE_STAGES + 2];	
-		}; */
+
 		PIT_ENV_KNOBS *ptr = (screenInd == PITENV)? &pit_env_knobs[oscInd] : &filt_env_knobs[oscInd];
 		int8_t sh = 5;
 		uint32_t cycles = 0;
@@ -434,7 +435,7 @@ void __attribute__(( noinline ))  updateGraphic()
 		}
 		scl = (float)31.5/max;
 		if(scl > 4) scl = 4;
-		//LogTextMessage("cyc %u %u %f" , cycles, max, scl);
+		// LogTextMessage("cyc %u %u %f" , cycles, max, scl);
 		majCycle[majInd] = majCycle[majInd-1];
 		vals[0] = vals[cycles];
 		float perCol = (float)cycles/(graphCols-suslen);
@@ -445,7 +446,7 @@ void __attribute__(( noinline ))  updateGraphic()
 		}
 		majCycle[susMaj] = suslen;
 
-		//get the rounded versions of major points (to make sure everything gets visible)
+		// get the rounded versions of major points (to make sure everything gets visible)
 		for(uint8_t i = 0; i < majInd + 1; i++)
 		{
 			majPos[i] = float(majCycle[i])/perCol;
@@ -453,10 +454,10 @@ void __attribute__(( noinline ))  updateGraphic()
 		
 		majInd = 0;
 		
-		//get the interpolated graph points
+		// get the interpolated graph points
 		for(uint8_t i = 0; i < graphCols+1; i++)
 		{
-			//if we're on the sus line, don't increment the cycle and hold the same value
+			// if we're on the sus line, don't increment the cycle and hold the same value
 			if(majInd == susMaj)
 			{
 				if(!(--suslen)) majInd++;
@@ -465,7 +466,7 @@ void __attribute__(( noinline ))  updateGraphic()
 			{
 				uint16_t ind = curCycle;
 				
-				//if we're at a major point, ignore the actual cycle and use the major cycle
+				// if we're at a major point, ignore the actual cycle and use the major cycle
 				if(curPos >= majPos[majInd])
 				{
 					ind = majCycle[majInd];
@@ -475,22 +476,13 @@ void __attribute__(( noinline ))  updateGraphic()
 				curCycle += perCol;
 				++curPos;
 			}
-			//LogTextMessage("%d", curVal);
+			// LogTextMessage("%d", curVal);
 			graphic[i][0] = curVal*scl + 32;
 		}
 	}
 	else if(screenInd == ARPEGSETUP || screenInd == ARPEGNOTES)
 	{
-		/* struct ARP_KNOBS {
-			uint8_t steps;
-			uint8_t G;
-			uint16_t T;
-			
-			int8_t P[MAXARP];
-			uint8_t V[MAXARP];
-			int8_t E[MAXARP];
-			float BPM;	
-		}; */
+
 		ARP_KNOBS *ptr = &arpeggio[oscInd];
 		int8_t sh = 5;
 		uint32_t cycles = 0;
@@ -506,7 +498,7 @@ void __attribute__(( noinline ))  updateGraphic()
 		float scl;
 		majCycle[0] = 0;
 		uint16_t limit = ptr->T >> sh;
-		//LogTextMessage("h %d %d", 0x7ffffff, 0x7fffffff>>1);
+		// LogTextMessage("h %d %d", 0x7ffffff, 0x7fffffff>>1);
 		int32_t rate = SEEK[ptr->G];
 		rate = (rate > (MAX_INT32 >>sh))? MAX_INT32 : rate <<sh;
 		uint8_t isVel = 1;
@@ -521,9 +513,9 @@ void __attribute__(( noinline ))  updateGraphic()
 		
 		for(uint8_t i = 0; i < ptr->steps; i++)
 		{
-			//int32_t goal = ptr->P[i]<<PITCH_COARSE; 
+			// int32_t goal = ptr->P[i]<<PITCH_COARSE; 
 			int32_t goal = (isVel)? ((int32_t)VELGAIN[ptr->V[i]]-(0x7fffffff>>1))>>3 : ptr->P[i]<<PITCH_COARSE; 
-			//LogTextMessage("g %d", goal);
+			// LogTextMessage("g %d", goal);
 			int32_t diff = goal-val;	
 			uint16_t curCyc = 0;
 
@@ -543,12 +535,12 @@ void __attribute__(( noinline ))  updateGraphic()
 		}
 		scl = (float)31.5/max;
 		if(scl > 4) scl = 4;
-		//LogTextMessage("cyc %u %u %f" , cycles, max, scl);
+		// LogTextMessage("cyc %u %u %f" , cycles, max, scl);
 		majCycle[majInd] = majCycle[majInd-1];
 		vals[0] = 0;
 		float perCol = (float)cycles/(graphCols);
 
-		//get the rounded versions of major points (to make sure everything gets visible)
+		// get the rounded versions of major points (to make sure everything gets visible)
 		for(uint8_t i = 0; i < majInd + 1; i++)
 		{
 			majPos[i] = float(majCycle[i])/perCol;
@@ -556,12 +548,12 @@ void __attribute__(( noinline ))  updateGraphic()
 		
 		majInd = 0;
 		
-		//get the interpolated graph points
+		// get the interpolated graph points
 		for(uint8_t i = 0; i < graphCols+1; i++)
 		{
 			uint16_t ind = curCycle;
 				
-			//if we're at a major point, ignore the actual cycle and use the major cycle
+			// if we're at a major point, ignore the actual cycle and use the major cycle
 			if(curPos >= majPos[majInd])
 			{
 				ind = majCycle[majInd];
@@ -571,7 +563,7 @@ void __attribute__(( noinline ))  updateGraphic()
 			curCycle += perCol;
 			++curPos;
 
-			//LogTextMessage("%d", curVal);
+			// LogTextMessage("%d", curVal);
 			graphic[i][0] = curVal*scl + 32;
 		}
 	}
@@ -616,14 +608,14 @@ void __attribute__(( noinline ))  updateGraphic()
 		uint8_t upr = (8-page) * 8 - 1;
 		uint8_t rem = graphCols;
 		uint8_t ind = 0;
-		//LogTextMessage("h");
+		// LogTextMessage("h");
 		while(rem)
 		{
 			uint8_t amt = (rem < maxBytes)? rem: maxBytes;
 			
 			memset(&i2cWritePtr[1], 0x0, amt);
 			i2cWritePtr[0] = 0x40;
-			//if(wavPtr != NULL)
+			// if(wavPtr != NULL)
 			{
 				for(uint8_t i = 0; i < amt; i++)
 				{
@@ -640,15 +632,18 @@ void __attribute__(( noinline ))  updateGraphic()
 				}
 			}
 			
-			i2cMasterTransmit(&I2CD1, 0x3c, i2cWritePtr, amt + 1, readByte, 0);
+			// i2cMasterTransmit(&I2CD1, 0x3c, i2cWritePtr, amt + 1, readByte, 0);
+			Wire.beginTransmission(GRAPHIC_ADDR);
+			Wire.write(i2cWritePtr, amt + 1);
+			Wire.endTransmission();
 			rem -= amt;
 			ind += amt;
 		}
 		
 		  
 	}
-	//LogTextMessage("%u t", ticks-strt);
-	//LogTextMessage("max %d", max);
+	// LogTextMessage("%u t", ticks-strt);
+	// LogTextMessage("max %d", max);
 }
 
 /* void updateGraphic()
@@ -715,17 +710,17 @@ void __attribute__(( noinline ))  updateGraphic()
 void initLCD()
 {	
 	//configure I2C pins
-	palSetPadMode(GPIOB, 8, PAL_MODE_ALTERNATE(4)|PAL_STM32_PUDR_PULLUP|PAL_STM32_OTYPE_OPENDRAIN);// SCL
-	palSetPadMode(GPIOB, 9, PAL_MODE_ALTERNATE(4)|PAL_STM32_PUDR_PULLUP|PAL_STM32_OTYPE_OPENDRAIN);// SDA
+	//palSetPadMode(GPIOB, 8, PAL_MODE_ALTERNATE(4)|PAL_STM32_PUDR_PULLUP|PAL_STM32_OTYPE_OPENDRAIN);// SCL
+	//palSetPadMode(GPIOB, 9, PAL_MODE_ALTERNATE(4)|PAL_STM32_PUDR_PULLUP|PAL_STM32_OTYPE_OPENDRAIN);// SDA
 	
 	//start an i2c object?
 	//i2cStart(&I2CD1, &i2cfg);
-	
+	Serial.write("Init\n");
 	//turn on backlight
 	toggleBackLight(1);
 	
 	//wait to make sure power is fully up
-	chThdSleepMilliseconds(200);
+	delay(200);
 	toggleBackLight(1); // backlight on
 	
 	//initialization sequence
@@ -733,7 +728,8 @@ void initLCD()
 	for(uint8_t i = 0; i < 4; i++)
 	{
 		send4BitsAndClear(codes[i]);
-		chThdSleepMilliseconds(5);
+		delay(5);
+		//chThdSleepMilliseconds(5);
 	}
 
 	
@@ -755,7 +751,7 @@ void initLCD()
 	
 	sendGraphicCmd(SET_DISP | 1);
 	GRAPH_update = 1;	
-	
+	memset(LCD_update, 1, sizeof(LCD_update));
 }
 
 
@@ -767,6 +763,9 @@ void __attribute__(( noinline )) writeStr(uint8_t row, uint8_t col, uint8_t len,
 	//LogTextMessage("writing");
 	//write the string
 	uint8_t skip = 0;
+	//uint8_t sendInd = 0;
+	//uint8_t sendChars[21];
+	//uint8_t cmdInd = 0;
 	for(int i = 0; i < len; i++)
 	{
 		uint8_t ch;
@@ -783,9 +782,34 @@ void __attribute__(( noinline )) writeStr(uint8_t row, uint8_t col, uint8_t len,
 				setCursorPosition(row, col + i);
 				skip = 0;
 			}
+			//sendChars[sendInd++] = ch;
 			sendByte(ch, Rs);
 		}
 	}
+	
+/* 	for(int i = 0; i < sendInd; i++)
+	{
+		cmdInd = 0;
+		uint8_t upper =  (sendChars[i]&0xF0) | Rs | backlightStatus;
+		uint8_t lower = ((sendChars[i] << 4)&0xF0)  | Rs | backlightStatus;
+		i2cWritePtr[cmdInd++] = upper;
+		i2cWritePtr[cmdInd++] = upper | En;
+		i2cWritePtr[cmdInd++] = upper & ~En;
+		Wire.beginTransmission(address);
+		Wire.write(i2cWritePtr, cmdInd);
+		Wire.endTransmission();
+		cmdInd = 0;
+		i2cWritePtr[cmdInd++] = lower;
+		i2cWritePtr[cmdInd++] = lower | En;
+		i2cWritePtr[cmdInd++] = lower & ~En;
+		Wire.beginTransmission(address);
+		Wire.write(i2cWritePtr, cmdInd);
+		Wire.endTransmission();
+	}
+	 */
+	
+	
+	
 }
 
 	
@@ -1158,7 +1182,7 @@ void __attribute__(( noinline )) checkWriteElem()
 					
 					break;
 				
-				/*  case MIDIINS:
+				 case MIDIINS:
 				{
 					// "01234567890123456789"
 					// " MIDICH:@@@ HKEY:@@@",
@@ -1190,8 +1214,8 @@ void __attribute__(( noinline )) checkWriteElem()
 						case OBJ5: writeStr(3, 8, 3, (char *)yesNoStr[SHIFTMASK(oscInd, bitLgto)]); break;
 					}
 				}
-				break;  */
-				/* 	
+				break; 
+					
 				case MIDICCS:
 				{
 					// "01234567890123456789"
@@ -1203,7 +1227,7 @@ void __attribute__(( noinline )) checkWriteElem()
 					writeBasicInt((int16_t)(*(&(midi_knobs[oscInd].CC_nums[0]) + ind)), 3, 0, (ind >> 1) + 1, (ind & 0x01)? 17: 9);
 				}
 				break;
-				*/
+				
 				 case MODA:
 				{
 					// "01234567890123456789"
@@ -1230,7 +1254,7 @@ void __attribute__(( noinline )) checkWriteElem()
 					}
 				}
 				break;
-				/*
+				
 				case OUTS:
 					// "01234567890123456789"
 					// " PAN: L@@@ R@@@     ",
@@ -1279,7 +1303,7 @@ void __attribute__(( noinline )) checkWriteElem()
 							}
 							else
 							{								
-								intToStr("V:",(int16_t)__USAT(vel[child] + monoVel[oscInd], 7), 3, 0, 0, tempStr);
+								intToStr("V:",(int16_t)__USAT8(vel[child] , monoVel[oscInd], 7), 3, 0, 0, tempStr);
 							}
 							
 						}
@@ -1310,7 +1334,7 @@ void __attribute__(( noinline )) checkWriteElem()
 					}
 					
 				}
-				break; */
+				break;
 				
 				case HARMONIC:
 				{
@@ -1354,7 +1378,8 @@ void  __attribute__(( noinline )) send4Bits(uint8_t data)
 {
 	//static uint8_t i2cWritePtr[1] __attribute__ ((section (".sram2")));	//the right type of memory for i2c write buffer										
 	//static uint8_t *readByte;
-	
+	//Serial.write(data);
+	//Serial.println(data, BIN);
 	i2cWritePtr[0] = data | backlightStatus ;
 	//i2cMasterTransmit(&I2CD1, address, i2cWritePtr, 1, readByte, 0);	
 	Wire.write(i2cWritePtr[0]);
@@ -1373,17 +1398,19 @@ void  __attribute__(( noinline )) clearFlag(uint8_t data)
 
 void  __attribute__(( noinline )) send4BitsAndClear(uint8_t data)
 {
+	Wire.beginTransmission(address);
 	send4Bits(data);
 	clearFlag(data);
+	Wire.endTransmission();
 	//chThdSleepMicroseconds(MICRODELAY);
 }
 
 void __attribute__(( noinline ))  sendByte(uint8_t data, uint8_t mode)
 {
-	Wire.beginTransmission(address);
+	
 	send4BitsAndClear((data&0xF0)|mode);
 	send4BitsAndClear(((data<<4)&0xF0)|mode);
-	Wire.endTransmission();
+	
 }
 
 void __attribute__(( noinline ))  pitchStr(char *str, int32_t pitch, uint8_t isNum, uint8_t center, int32_t note)

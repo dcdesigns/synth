@@ -288,7 +288,7 @@ const uint16_t TIME[128] = {
 
 uint32_t __attribute__( ( always_inline ) ) getPhaseInc(uint32_t pitch)
 {
-	uint16_t pitchInd = pitch >> PITCH_COARSE;
+/* 	uint16_t pitchInd = pitch >> PITCH_COARSE;
 	if(pitchInd > 255) return PHASEINCS[256]>>1;
 	uint32_t inc1 = PHASEINCS[pitchInd];
 	uint32_t inc2 = PHASEINCS[pitchInd + 1];
@@ -305,7 +305,7 @@ uint32_t __attribute__( ( always_inline ) ) getPhaseInc(uint32_t pitch)
 		inc = ___SMMLA(inc2,cents,inc);
 		return inc;
 	}
-	//return 0x012C5F93;
+	//return 0x012C5F93; */
 }
 
 #endif 

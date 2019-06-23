@@ -1,10 +1,54 @@
 #ifndef HELPERFUNCTIONS_C
 #define HELPERFUNCTIONS_C
 
-#include "./pitchTables.c"
-#include "./synthVariables.c"
+//#include "synth/pitchTables.c"
+#include "synthVariables.c"
+#include "settings.h"
 
 const float floatMults[9] = {10000,1000,100,10,1,.1,.01,.001,.0001};
+
+uint8_t __USAT8(uint8_t val, int8_t inc, uint8_t satBits)
+{
+	int32_t max = (uint32_t)(~0) >> (32 - satBits);
+	int32_t res = (int32_t)val + inc;
+	Serial.println(res);
+	return (uint8_t)((res > max) ? max : (res < 0)? 0: res);
+}
+
+uint32_t __USAT32(uint32_t val, int32_t inc, uint8_t satBits)
+{
+	int32_t max = (uint32_t)(~0) >> (32 - satBits);
+	int32_t res = (int32_t)val + inc;
+	Serial.println(res);
+	return (uint32_t)((res > max) ? max : (res < 0)? 0: res);
+}
+
+uint32_t __SSAT32(int32_t val, int32_t inc, uint8_t satBits)
+{
+	int32_t max = (uint32_t)(~0) >> (32 - satBits);
+	Serial.println(max);
+	int32_t res = (int32_t)val + inc;
+	Serial.print(res);
+	if(val > 0 && inc > 0 && res < 0) res = max;
+	else if(val < 0 && inc < 0 && res > 0) res = -max;
+	else if(res > max) res = max;
+	else if(res < -max) res = -max;
+	Serial.println(res);
+	return res;
+}
+
+int32_t ___SMMUL(int32_t val, int32_t mult)
+{
+	float multF = (float)mult/MAX_INT32;
+	return (int32_t)(multF * val) >> 1;
+}
+
+
+
+
+
+
+
 
 uint8_t __attribute__( ( noinline ) )  indexIncrement(uint8_t cur, int8_t inc, uint8_t cnt)
 {
@@ -33,7 +77,7 @@ void __attribute__(( noinline )) incArpRecTime()
 	}
 	else
 	{
-		int16_t time = ticks - lastTime;
+		uint32_t time = ticks - lastTime;
 		recTimes[recNotes-1] = time;
 		//LogTextMessage("time %u, shortest %u", time, recShortest);
 		uint8_t addIt = 0;

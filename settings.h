@@ -49,6 +49,11 @@ static const uint8_t WAVE_IND_INC = WAVE_READ_INC >> 2;
 static const uint8_t WAVE_REPS = WAVE_RES/WAVE_IND_INC;
 
 
+static const uint8_t MX_PINS[] = {0,1,2,3};
+static const uint8_t LED_PINS[] = {4,5,6,7};
+static const uint8_t ADDR_PINS[] = {24,25,26,27};
+static const uint8_t KB_PINS[] = {28,29, 8};
+
 //string settings for files
 static const uint8_t MAXFNAMELEN =(6 + 1);
 #define MAXDPATHLEN 50
@@ -196,7 +201,7 @@ static const uint8_t charH[3] = {'Z', '9', ')'};
 
 //#define EX_AMP_SET 14
 
-#define HOLD_TIME 300
+
 	
 static const int8_t BIG_GROUP[7][3] = {
 	{bitOsc, -1, 0},
@@ -325,6 +330,6 @@ static const uint32_t TOTAL_MODS = (OSC_CNT * TOTAL_MOD_SRC + 2);
 #define MUTE 2
 
 
-#include "./synthVariables.c"
+#include "synthVariables.c"
 
 #endif 
