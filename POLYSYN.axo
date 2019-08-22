@@ -199,7 +199,7 @@
 		}
 		if(main_clock)
 		{
-			mainR = SEEK[18];
+			mainR = SEEK[14];
 			main_mask = 0;
 			--main_clock;
 		}
@@ -209,7 +209,7 @@
 			main_mask = MAX_INT32;
 		}
 		
-		kMainOut += ___SMMUL((GAIN[main_gain] & main_mask) - kMainOut, mainR)<<1;
+		kMainOut += ___SMMUL((int32_t)(GAIN[main_gain] & main_mask) - (int32_t)kMainOut, mainR)<<1;
 			
 
 		//factor in all control-type pitch inputs (knobs) to apply a preset glide

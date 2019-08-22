@@ -123,11 +123,13 @@ void __attribute__(( noinline )) resetPatch()
 		}
 	}
 	
-	
+	uint8_t resetTogs[7] = {bitOsc, bitMain, bitNotes, bitEnvs, bitAEnv, bitWave, bitPoly};
+	SETBITS(0, resetTogs, sizeof(resetTogs)); 
 
 	for(uint8_t i = 0; i < OSC_CHILD_CNT; i++)
 	{
 		amp_env[i].stage = 3;
+		amp_env[i].val = 0;
 		pit_env[i].stage = FREE_STAGES + 1;
 		filt_env[i].stage = FREE_STAGES + 1;
 	}
@@ -148,7 +150,8 @@ void __attribute__(( noinline )) resetPatch()
 
 	for(uint8_t i = 0; i < OSC_CNT; i++)
 	{
-		curWavFile[i] = &files[WAVE][0];
+		setFileIndexFromName(WAVE, i, "SIN");
+		//curWavFile[i] = &files[WAVE][0];
 		pit_knobs[i].vel_glide = 11;
 		pit_knobs[i].pitch = MIDI_KEY_0<<PITCH_COARSE;
 		SETBIT(i, bitArpTrig);
@@ -175,10 +178,10 @@ void __attribute__(( noinline )) resetPatch()
 		
 	}
 
-	uint8_t resetTogs[7] = {bitOsc, bitMain, bitNotes, bitEnvs, bitAEnv, bitWave, bitPoly};
-	SETBITS(0, resetTogs, sizeof(resetTogs)); 
+	
 	osc_gain[0] = 50;
 	amp_env_knobs[0].rate[0] = 2;
+
 	
 	initPatch(0, OSC_CNT-1);
 	
@@ -571,7 +574,7 @@ void __attribute__(( noinline )) routeMod(uint8_t destOsc, uint8_t bit, uint16_t
 
 uint8_t __attribute__(( noinline ))  finishRecording()
 {	
-	uint8_t recState = 0; 
+	uint32_t recState = 0; 
 	if(SHIFTMASK(MAINTOG, bitRecArp)) recState = 1;
 	else if(SHIFTMASK(MAINTOG, bitRecEnv)) recState = 2;
 
@@ -663,7 +666,7 @@ uint8_t __attribute__(( noinline ))  finishRecording()
 		}
 
 	}
-	else
+	/* else
 	{
 		updateLCDelems(OBJ3, OBJ6);
 		//memset(&LCD_update[OBJ3], 1, 4);
@@ -711,7 +714,7 @@ uint8_t __attribute__(( noinline ))  finishRecording()
 				curEnv->time[stg] = 0;
 			}
 		}
-	} 
+	} */ 
 	updateLEDs();
 	return 1;
 }
@@ -742,6 +745,41 @@ void __attribute__(( noinline )) updateUINT8val(uint8_t *val, int8_t inc, uint8_
 void handleKnobs()
 {
 	static uint8_t readInd = 0;
+	static int32_t next_loop = 0;
+	static int32_t next_inc = 0;
+	static int32_t next_dir = 0;
+	
+	if(next_loop && !main_clock)
+	{
+		int32_t act = next_loop;
+		main_clock = MAIN_FADE;
+		next_loop = 0;
+		switch(act)
+		{
+			//patch reset
+			case EX_PATRNDCLR: resetPatch(); break;
+			//filter track
+			case EX_FTRACK: 
+				TOGGLEBIT(oscInd, bitFTrack);
+				if(SHIFTMASK(oscInd, bitFTrack)) filt_knobs[oscInd].FRQ = 0;
+				else filt_knobs[oscInd].FRQ = (A4 + MIDI_KEY_0)<<PITCH_COARSE;
+				LCD_update[OBJ1] = 1;
+				LCD_update[OBJ3] = 1;
+				updateLEDs();
+				break;
+			//patch load
+			case EX_PATCHLD:
+				incrementFileIndex(PATCH, next_inc, next_dir);
+				FIL_update[MAINTOG] = 1;//loadFile(fType, oscInd);
+				updateLCDelems(OBJ1, OBJ6);
+				break;
+		}
+				
+			
+		
+	}
+		
+		
 
 	if(inputQueue[readInd][2])
 	{
@@ -820,6 +858,7 @@ void handleKnobs()
 							tog = -1;
 							scrn = -1;
 							extra = 0;
+							osc = oscInd;
 						}
 						else if(tog == bitMain && SHIFTMASK(MAINTOG, bitSolo) && osc != oscInd) 
 						{
@@ -852,11 +891,13 @@ void handleKnobs()
 			if(osc == E_OSC) osc = oscInd;
 	
 			//tell non poly's to fuck off
-			if(tog == bitPoly && osc >= POLY_CNT)
+			if(tog == bitPoly && osc >= POLY_CNT) 
 			{
 				tog = -1;
 				extra = 0;
 			}
+			//tell filter track to fuck off too (needs to wait for volume reduction)
+			if(tog == bitFTrack) tog = -1;
 			
 			//toggle stuff
 			if(tog != -1 && inputQueue[readInd][3])
@@ -911,8 +952,9 @@ void handleKnobs()
 						}
 						else
 						{
-							main_clock = 1000;
-							resetPatch();
+							main_clock = MAIN_FADE;
+							next_loop = EX_PATRNDCLR;
+							//resetPatch();
 						}
 						break;
 					case EX_FAV1: 
@@ -933,6 +975,7 @@ void handleKnobs()
 					case EX_TRIG_ON:
 						if(isTog) onEvent(oscInd, oscInd, ALL_SLOTS, 1);
 						else offEvent(0, OSC_CNT-1, ALL_SLOTS, 1);
+						break;
 						
 					//case EX_HARMS: setWavePtrs(oscInd, oscInd); break;
 					case EX_POLY: if(isTog) togglePolyMono(oscInd, oscInd); break;
@@ -940,7 +983,21 @@ void handleKnobs()
 					case EX_HOLD_ALL: offEvent(0, OSC_CNT -1, ALL_SLOTS, 0); break;
 					case EX_ARPNOTREC: scrn = (isTog)? ARPEGNOTES: ARPREC; break;
 					case EX_PATSVLD: scrn = (isTog)? PATCHSV: PATCHLD; break;
-					//case EX_DRUM: break;
+					case EX_FTRACK: 
+						main_clock = MAIN_FADE; 
+						next_loop = EX_FTRACK;
+						//if(SHIFTMASK(oscInd, bitFTrack)) filt_knobs[oscInd].FRQ = 0;
+						//else filt_knobs[oscInd].FRQ = (A4 + MIDI_KEY_0)<<PITCH_COARSE;
+						break;
+					case EX_DRUM: 
+						for(int32_t osc = 0; osc < OSC_CNT; ++osc)
+						{
+							SETBIT(osc, bitArpSkip);
+							
+							//CLEARBIT(osc, bitArpTrig);
+						}
+						drumPage = arp_page[oscInd] >> 1;
+						break;
 					
 
 					//case EX_AMP_SET: if(inputQueue[readInd][3]) equalizeAmp(osc); break;
@@ -998,11 +1055,19 @@ void handleKnobs()
 				case PATCHLD:
 				{
 					uint8_t fType = (screenInd == WAVETBL)? WAVE: PATCH;
-					if(fType == PATCH) main_clock = 1000;
-					incrementFileIndex(fType, inc, !(inputInd & 1));
-					FIL_update[(fType == WAVE)? oscInd: MAINTOG] = 1;//loadFile(fType, oscInd);
-					
-					updateLCDelems(OBJ1, OBJ6);
+					next_dir = !(inputInd & 1);
+					next_inc = inc;
+					if(fType == PATCH) 
+					{
+						main_clock = MAIN_FADE;
+						next_loop = EX_PATCHLD;
+					}
+					else
+					{
+						incrementFileIndex(fType, next_inc, next_dir);
+						FIL_update[oscInd] = 1;//loadFile(fType, oscInd);
+						updateLCDelems(OBJ1, OBJ6);
+					}
 				}
 				break;
 					
@@ -1092,14 +1157,14 @@ void handleKnobs()
 						//zero coarse pitch
 						case KNOB_BUT5: curEnv->pitch[envInd] = curEnv->pitch[envInd] & PITCH_MASK; LCD_update[OBJ3] = 1; break;
 							
-						//record
+						/* //record
 						case KNOB_BUT6: 
 							CLEARBIT(oscInd, (done)? bitPEnv: bitFEnv);
 							SETBIT(MAINTOG, bitRecEnv);
 							recNotes = 0;
 							LCD_update[OBJ4] = 1;
 							
-							break;
+							break; */
 						
 						//edit glide
 						case KNOB7:
@@ -1180,6 +1245,13 @@ void handleKnobs()
 						case KNOB3:
 						case KNOB_BUT3:
 							arp_page[oscInd] = indexIncrement(arp_page[oscInd], inc, arp_pages[oscInd]);
+							
+							if(SHIFTMASK(MAINTOG, bitDrum))
+							{
+								drumPage = arp_page[oscInd] >> 1;
+								//LogTextMessage("%d", drumPage);
+								updateLEDs();
+							}
 							//curLCD = OBJ1;
 							LCD_update[OBJ1] = 1;
 							updateLCDelems(OBJ3, OBJ6);
@@ -1256,22 +1328,25 @@ void handleKnobs()
 					switch(inputInd)
 					{	
 						//track keys
-						case KNOB3:
+						/* case KNOB3:
 						case KNOB_BUT3:
-							main_clock = 1000;
+							main_clock = MAIN_FADE;
 							TOGGLEBIT(oscInd, bitFTrack);
-							if(SHIFTMASK(oscInd, bitFTrack)) curFilt->FRQ = 0;
-							else curFilt->FRQ = (A4 + MIDI_KEY_0)<<PITCH_COARSE;
-							LCD_update[OBJ1] = 1;
-							LCD_update[OBJ3] = 1;
-							break;
+							next_loop = EX_FTRACK;
+							// if(SHIFTMASK(oscInd, bitFTrack)) curFilt->FRQ = 0;
+							// else curFilt->FRQ = (A4 + MIDI_KEY_0)<<PITCH_COARSE;
+							// LCD_update[OBJ1] = 1;
+							// LCD_update[OBJ3] = 1;
+							break; */
 						
 						//type
+						case KNOB3:
+						case KNOB_BUT3:
 						case KNOB4:
 						case KNOB_BUT4:
 							curFilt->TYPE = indexIncrement(curFilt->TYPE, inc, 3);
 							//curLCD = 2;
-							LCD_update[OBJ2] = 1;
+							LCD_update[OBJ1] = 1;
 							break;
 						
 						//edit pitch
@@ -1489,7 +1564,7 @@ void handleKnobs()
 				
 				
 				
-				case NOTES:
+				/* case NOTES:
 				{
 					uint8_t stepInd = 0;
 					if(oscInd >= POLY_CNT) notesPage = 0;
@@ -1543,7 +1618,7 @@ void handleKnobs()
 							
 					}					
 				}
-				break;
+				break; */
 				
 				case HARMONIC:
 				{
@@ -1695,7 +1770,7 @@ void updateAllMod(uint8_t first, uint8_t last)
 
 void __attribute__((noinline)) updateArpTime(uint8_t osc, float newBPM)
 {
-	LogTextMessage("o %u bpm %f", osc, newBPM);
+	//LogTextMessage("o %u bpm %f", osc, newBPM);
 	if(newBPM > 9999) arpeggio[osc].BPM = 9999;
 	else if(newBPM < 6) arpeggio[osc].BPM = 6;
 	else arpeggio[osc].BPM = newBPM;

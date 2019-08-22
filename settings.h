@@ -67,7 +67,7 @@ static const uint8_t MAXFNAMELEN =(6 + 1);
 #define WAVE 0
 #define PATCH 1
 
-
+#define MAIN_FADE 300
 
 //knob object indexes
 #define ENCODERS 8 
@@ -186,6 +186,8 @@ static const uint8_t LCDelems = OBJ6 + 1;
 #define EX_ARPNOTREC 15
 #define EX_PATSVLD 16
 #define EX_DRUM 17
+#define EX_FTRACK 18
+#define EX_PATCHLD 19
 #define poopSize 501
 
 static const float incsBPM[4] = {.1, 1, 10, 100};
@@ -209,21 +211,21 @@ static const int8_t BIG_GROUP[7][3] = {
 };
 
 static const int8_t LAST_GROUP_COL[6][4] = {
+	{MAINTOG, bitSolo, -1, 0},
 	{MAINTOG, bitRoute, -1, 0},
 	{MAINTOG, bitCopy, -1, 0},
-	{E_OSC, -1, FAVS, EX_FAV1},
-	{E_OSC, -1, FAVS, EX_FAV2},
-	{E_OSC, -1, FAVS, EX_FAV3},
-	{E_OSC, -1, -1, EX_ARPNOTREC},
+	{MAINTOG, bitArpSync, -1, EX_SYNC},
+	{E_OSC, -1, -1, EX_PATSVLD},
+	{E_OSC, -1, FAVS, EX_FAV1},	
 };
 
 
 static const int8_t OTHER_GROUP[16][4] = {
-																											{E_OSC, -1, FAVS, EX_FAV4}, 			{E_OSC, -1, -1, EX_PATSVLD},
-																											{E_OSC, -1, FAVS, EX_FAV5}, 			{E_OSC, -1, -1, EX_PATRNDCLR},
-																											{MAINTOG, bitArpSync, -1, EX_SYNC},				{E_OSC, -1, -1, EX_TRIG_ON},
-	{E_OSC, bitWave, WAVETBL, EX_WAVE}, {E_OSC, bitPoly, PITCH, EX_POLY}, 	{E_OSC, bitNotes, NOTES, 0}, 	{E_OSC, bitHold, -1, EX_HOLD1}, 		{E_OSC, bitHarms, HARMONIC, 0},
-	{E_OSC, bitMod, MODA, 0}, 			{E_OSC, bitKeyVel, MIDICCS, 0}, 		{E_OSC, bitEnvs, MIDIINS, 0}, 	{MAINTOG, bitDrum, ARPEGNOTES, EX_DRUM},/*{MAINTOG, bitHoldAll, -1, EX_HOLD_ALL},*/ {MAINTOG, bitSolo, -1, 0},
+																													{MAINTOG, bitDrum, ARPEGNOTES, EX_DRUM}, 	{E_OSC, -1, -1, EX_ARPNOTREC},
+																													{E_OSC, -1, -1, EX_PATRNDCLR}, 				{E_OSC, -1, -1, EX_TRIG_ON},
+																													{E_OSC, -1, FAVS, EX_FAV2}, 				{E_OSC, -1, FAVS, EX_FAV3},
+	{E_OSC, bitWave, WAVETBL, EX_WAVE}, {E_OSC, bitHarms, HARMONIC, 0},			{E_OSC, bitPoly, PITCH, EX_POLY}, 	{E_OSC, bitNotes, PITCH, 0}, 				{E_OSC, bitHold, -1, EX_HOLD1},
+	{E_OSC, bitMod, MODA, 0}, 			{E_OSC, bitFTrack, FILTER, EX_FTRACK},	{E_OSC, bitKeyVel, MIDICCS, 0},		{E_OSC, bitEnvs, MIDIINS, 0}, 				{MAINTOG, bitHoldAll, -1, EX_HOLD_ALL}
 };
 	
 

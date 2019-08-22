@@ -284,14 +284,14 @@ void handleNotes()
 				LCD_update[OBJ6] = 1;
 				//curLCD = OBJ6;
 			}
-			else if(SHIFTMASK(MAINTOG, bitRecEnv) && recNotes < FREE_STAGES + 2)
+			/* else if(SHIFTMASK(MAINTOG, bitRecEnv) && recNotes < FREE_STAGES + 2)
 			{
 				PIT_ENV_KNOBS *curEnv = (screenInd == PITENV)? &pit_env_knobs[oscInd]: &filt_env_knobs[oscInd];
 				curEnv->pitch[recNotes] = curPitch;
 				incArpRecTime();
 				recNotes++;
 				LCD_update[OBJ4] = 1;
-			}
+			} */
 					
 
 			

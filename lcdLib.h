@@ -35,6 +35,12 @@ const uint8_t SET_FULL_ON = 0xA4;
 
 const uint8_t GRAPHIC_ADDR = 0x3C;
 
+const uint8_t SCAN_DIR = 0xc0;
+const uint8_t RE_MAP = 0xa0;
+
+const uint8_t flip_scan = 0x08;
+const uint8_t flip_map = 0x01;
+
 
 //structs
 struct LCDelem //struct to hold positioning/length of each element

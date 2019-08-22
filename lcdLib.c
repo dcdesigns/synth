@@ -144,17 +144,17 @@ const char screens[18][4][21] = {
 	},
 	{
 		"STAGE:@@@ @@@@@@@@@@",
-		"GOAL:@@@@@@@ @@@@@@@",
+		"GOAL:@@@@@@@        ",
 		"GLIDE:@@@ @@@@@@@@@@"
 	},
 	{
-		"TRACK:@@@ TYPE:@@@@@",
+		"TYPE:@@@@@          ",
 		"CUTFRQ:@@@@@@@      ",
 		"RES:@@@             ",
 	},
 	{
 		"STAGE:@@@ @@@@@@@@@@",
-		"GOAL:@@@@@@@ @@@@@@@",
+		"GOAL:@@@@@@@        ",
 		"GLIDE:@@@ @@@@@@@@@@"
 	},
 	{
@@ -753,6 +753,8 @@ void initLCD()
 	sendByte(0x06, Cmd); 	//increment on write, don't bit display
 	toggleDisplay(1); 		//display back on
 	
+	sendGraphicCmd(SCAN_DIR | flip_scan);
+	sendGraphicCmd(RE_MAP | flip_map);
 	sendGraphicCmd(SET_DISP | 1);
 	GRAPH_update = 1;	
 	
@@ -992,7 +994,7 @@ void __attribute__(( noinline )) checkWriteElem()
 							writeStr(2, 5, 7, tempStr);
 							break;
 						
-						case OBJ4:
+						/* case OBJ4:
 							if(SHIFTMASK(MAINTOG, bitRecEnv))
 							{
 								//LogTextMessage("p");							
@@ -1000,7 +1002,7 @@ void __attribute__(( noinline )) checkWriteElem()
 							}
 							else strcpy(tempStr, recStr);
 							writeStr(2, 13, 7, tempStr);
-							break;
+							break; */
 							
 						case OBJ5: writeBasicInt((int16_t)(curEnv->glide[envInd]),3, 0, 3, 6); break;
 						
@@ -1123,8 +1125,8 @@ void __attribute__(( noinline )) checkWriteElem()
 					FILT_KNOBS *curFilt = &filt_knobs[oscInd];
 					switch(curLCD)
 					{
-						case OBJ1: writeStr(1, 6, 3, (char *)yesNoStr[SHIFTMASK(oscInd, bitFTrack)]); break;	
-						case OBJ2: writeStr(1,15,5, (char *)filtStr[curFilt->TYPE]); break;
+						//case OBJ1: writeStr(1, 6, 3, (char *)yesNoStr[SHIFTMASK(oscInd, bitFTrack)]); break;	
+						case OBJ1: writeStr(1,5,5, (char *)filtStr[curFilt->TYPE]); break;
 
 						case OBJ3:
 							pitchStr(tempStr, curFilt->FRQ, SHIFTMASK(oscInd, bitFTrack), 0, 0);
@@ -1158,7 +1160,7 @@ void __attribute__(( noinline )) checkWriteElem()
 					
 					break;
 				
-				/*  case MIDIINS:
+				  case MIDIINS:
 				{
 					// "01234567890123456789"
 					// " MIDICH:@@@ HKEY:@@@",
@@ -1190,8 +1192,8 @@ void __attribute__(( noinline )) checkWriteElem()
 						case OBJ5: writeStr(3, 8, 3, (char *)yesNoStr[SHIFTMASK(oscInd, bitLgto)]); break;
 					}
 				}
-				break;  */
-				/* 	
+				break; 
+					
 				case MIDICCS:
 				{
 					// "01234567890123456789"
@@ -1203,7 +1205,7 @@ void __attribute__(( noinline )) checkWriteElem()
 					writeBasicInt((int16_t)(*(&(midi_knobs[oscInd].CC_nums[0]) + ind)), 3, 0, (ind >> 1) + 1, (ind & 0x01)? 17: 9);
 				}
 				break;
-				*/
+				
 				 case MODA:
 				{
 					// "01234567890123456789"
@@ -1230,7 +1232,7 @@ void __attribute__(( noinline )) checkWriteElem()
 					}
 				}
 				break;
-				/*
+				
 				case OUTS:
 					// "01234567890123456789"
 					// " PAN: L@@@ R@@@     ",
@@ -1242,7 +1244,7 @@ void __attribute__(( noinline )) checkWriteElem()
 						case OBJ2: writeBasicInt((int16_t)(127 - panLeft[oscInd]), 3, 0, 1, 12); break;
 					}
 					break;
-				 
+				 /*
 				 case NOTES:
 				{
 					//"01234567890123456789"
@@ -1287,7 +1289,7 @@ void __attribute__(( noinline )) checkWriteElem()
 					}
 				}
 				break;
-				
+				*/
 				 case FAVS:
 				{
 					//"01234567890123456789"
@@ -1310,7 +1312,7 @@ void __attribute__(( noinline )) checkWriteElem()
 					}
 					
 				}
-				break; */
+				break; 
 				
 				case HARMONIC:
 				{
@@ -1491,12 +1493,26 @@ void __attribute__(( noinline )) intToStr(char *before, int16_t num, uint8_t dig
 	}
 
 	digits[3] = tNum;
+	int32_t some = 0;
 	//LogTextMessage("%u %u %u %s %d", digits[0], digits[1], digits[2], str, tNum);
 	for(uint8_t i = 0; i < 4; i++)
 	{
 		if(digitsOut >= 4-i)
 		{
-			temp[0] = digits[i] + '0';
+			if(i < 3 && !some && !digits[i])
+			{
+				if(leadingSign)
+				{
+					temp[0] = str[strlen(str) -1];
+					str[strlen(str) -1] = ' ';
+				}
+				else temp[0] = ' ';
+			}
+			else
+			{
+				some = 1;
+				temp[0] = digits[i] + '0';
+			}
 			strcat(str, temp);
 			//
 		}
