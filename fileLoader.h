@@ -24,6 +24,9 @@ void  __attribute__(( noinline )) favAction(uint8_t ind, uint8_t writeIt);
 uint8_t  patchReadWrite(void *var, uint16_t size, uint8_t isWrite);
 uint8_t writeReadPatch(uint8_t isWrite);
 void __attribute__(( noinline )) checkFileQueue();
+uint32_t save_data_arrays();
+uint32_t read_data_arrays();
+uint32_t append_data_arrays();
 
 #include "./fileLoader.c"
 

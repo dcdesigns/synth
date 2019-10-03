@@ -125,7 +125,8 @@ static const uint8_t LCDelems = OBJ6 + 1;
 #define ARPREC 15
 #define FAVS 16
 #define HARMONIC 17
-#define SCREEN_CNT 18
+#define PHASE 18
+#define SCREEN_CNT 19
 
 //status bits
 #define bitSolo 0
@@ -167,6 +168,7 @@ static const uint8_t LCDelems = OBJ6 + 1;
 //#define bitWind 20
 #define bitKeyVel 21
 #define bitHarms 22
+#define bitPhase 23
 	
 	
 #define EX_WAVE 1
@@ -188,6 +190,8 @@ static const uint8_t LCDelems = OBJ6 + 1;
 #define EX_DRUM 17
 #define EX_FTRACK 18
 #define EX_PATCHLD 19
+#define EX_HARM 20
+#define EX_COPY 21
 #define poopSize 501
 
 static const float incsBPM[4] = {.1, 1, 10, 100};
@@ -221,11 +225,11 @@ static const int8_t LAST_GROUP_COL[6][4] = {
 
 
 static const int8_t OTHER_GROUP[16][4] = {
-																													{MAINTOG, bitDrum, ARPEGNOTES, EX_DRUM}, 	{E_OSC, -1, -1, EX_ARPNOTREC},
-																													{E_OSC, -1, -1, EX_PATRNDCLR}, 				{E_OSC, -1, -1, EX_TRIG_ON},
-																													{E_OSC, -1, FAVS, EX_FAV2}, 				{E_OSC, -1, FAVS, EX_FAV3},
-	{E_OSC, bitWave, WAVETBL, EX_WAVE}, {E_OSC, bitHarms, HARMONIC, 0},			{E_OSC, bitPoly, PITCH, EX_POLY}, 	{E_OSC, bitNotes, PITCH, 0}, 				{E_OSC, bitHold, -1, EX_HOLD1},
-	{E_OSC, bitMod, MODA, 0}, 			{E_OSC, bitFTrack, FILTER, EX_FTRACK},	{E_OSC, bitKeyVel, MIDICCS, 0},		{E_OSC, bitEnvs, MIDIINS, 0}, 				{MAINTOG, bitHoldAll, -1, EX_HOLD_ALL}
+																														{MAINTOG, bitDrum, ARPEGNOTES, EX_DRUM}, 	{E_OSC, -1, -1, EX_ARPNOTREC},
+																														{E_OSC, -1, -1, EX_PATRNDCLR}, 				{E_OSC, -1, -1, EX_TRIG_ON},
+																														{E_OSC, -1, FAVS, EX_FAV2}, 				{MAINTOG, bitHoldAll, -1, EX_HOLD_ALL},
+	{E_OSC, bitWave, WAVETBL, EX_WAVE}, {E_OSC, bitHarms, HARMONIC, EX_HARM},	{E_OSC, bitPoly, PITCH, EX_POLY}, 		{E_OSC, bitNotes, NOTES, 0}, 				{E_OSC, bitHold, -1, EX_HOLD1},
+	{E_OSC, bitMod, MODA, 0}, 			{E_OSC, bitPhase, PHASE, EX_HARM}, 		{E_OSC, bitFTrack, FILTER, EX_FTRACK},	{E_OSC, bitEnvs, MIDIINS, 0}, 				{E_OSC, bitKeyVel, MIDICCS, 0}			
 };
 	
 

@@ -125,111 +125,7 @@ int8_t vals[12000] = {0};
 }; */
 
 
-const char screens[18][4][21] = {
-	{
-		"@@@@@@@@@ @@@@@@@@@ ",
-		"@@@@@@@@@>@@@@@@@@@<",
-		"@@@@@@@@@ @@@@@@@@@ "
-	},
-	{
-		" TIME: A:@@@  D:@@@ ",
-		"       S:@@@  R:@@@ ",
-		" TRGT: D:@@@  S:@@@ "
-	},
-	{
-		"LEGATO:@@@          ",
-		"TRANSPOSE: @@@@@@@  ",
-		"GLIDE: P:@@@  V:@@@ "
-		
-	},
-	{
-		"STAGE:@@@ @@@@@@@@@@",
-		"GOAL:@@@@@@@        ",
-		"GLIDE:@@@ @@@@@@@@@@"
-	},
-	{
-		"TYPE:@@@@@          ",
-		"CUTFRQ:@@@@@@@      ",
-		"RES:@@@             ",
-	},
-	{
-		"STAGE:@@@ @@@@@@@@@@",
-		"GOAL:@@@@@@@        ",
-		"GLIDE:@@@ @@@@@@@@@@"
-	},
-	{
-		"STEPS:@@  TYPE:@@@@@",
-		"SPM:@@@@@@ GLIDE:@@@",
-		"STYLE:@@@@-@@@@     "
-	},
-	{
-		"POS:@@  *PIT/ENV/VEL",
-		"@@@@@@@@   @@@@@@@@ ",
-		"@@@@@@@@   @@@@@@@@ "
-	},
-	
-	{
-		"@@@@@@@@@ @@@@@@@@@ ",
-		"@@@@@@@@@>@@@@@@@@@<",
-		"@@@@@@@@@ @@@@@@@@@ "
-	},
-	{
-		" DIR: @@@@@@@@@     ",
-		" EDIT *a>A     MOVE ",
-		"  NAME:@@@@@@ *SAVE "
-	},
-	{
-		" MIDICH:@@@ HKEY:@@@",
-		" VEL:@@@@@@ LKEY:@@@",
-		" LEGATO:@@@         "
-	},
-	{
-		"CC#:WIND:@@@ MDW:@@@",
-		"RNG:WIND:@@@ MDW:@@@",
-		"    PBND:@@@ SUS:@@@"
-	},
-	{
-		" PAN: L@@@ R@@@     ",
-		"                    ",
-		"                    "
-	},
-	{
-		"PIT:@@@@@ FCUT:@@@@@",
-		"AMP:@@@@@ FRES:@@@@@",
-		"GAT:@@@@@ ARPT:@@@@@"
-	},
-	{
-		"NOTES:@@@   EDIT:@@@",
-		" @@@@@@@@@ @@@@@@@@@",
-		" @@@@@@@@@ @@@@@@@@@"
-	},
-	{
-		"RYTHM:@@@ VEL:@@@@@@",
-		"ENV:@@@             ",
-		"           @@@@@@@@ "
-	},
-	{
-		"FAV @@: @@@@@@      ",
-		"@@@@@@@@@@@@@@@@@@@@",
-		"@@@@@@@@@@@@@@@@@@@@"
-	},
-	{
-		"G.FUND @@@ PRTL1 @@@",
-		"G.PTL1 @@@ STEP  @@@",
-		"G.LAST @@@ COUNT @@@"
-	}
-	
-
-
-
-	
-};
-
-const char SCREENS[18][9] = {
-	"WAV TABL", " AMP ENV", " PIT/VEL", " PIT ENV", "  FILTER", "FILT ENV", 
-	"ARP INIT", "ARPSTEPS", "PATCH LD", "PATCH SV", "MIDI INS", "MIDI CCS", 
-	"  OUTPUT", "MOD SRCS", "  NOTES ", " ARP REC", "FAVORITE", "HARMONIC"
-};
+ 
 
 //const char waveStr[2][6] = {"NOISE", "FILE"};
 const char saveCopyStr[2][7] = {"SAVED.", "DONE."};
@@ -237,6 +133,7 @@ const char oscStr[6][5] = {"POL1", "POL2", "MON1", "MON2", "MON3", "MON4"};
 const char lvlStr[3][4] = {"LVL", "MST"};
 const char arpNoteLeader[3][4] = {" P", " E:", " V:"};
 const char yesNoStr[2][4] = {"NO", "YES"};
+const char onOffStr[2][4] = {"OFF", "ON"};
 const char startStopStr[2][7] = {"*START", "*STOP:"};
 const char copyWhat[2][4] = {"ALL", "ARP"};
 const char envStr[5][6] = {"PITCH", "F.CUT", "RES"};
@@ -284,7 +181,9 @@ void __attribute__(( noinline ))  updateGraphic()
 	uint8_t suslen = 10;
 	GRAPH_update = 0;
 	uint32_t strt = ticks;
-
+	uint8_t vertA = 200;
+	uint8_t vertB = 200;
+		
 	if(screenInd == AMPENV)
 	{
 		uint8_t *ptr = &amp_env_knobs[oscInd].rate[0];
@@ -575,15 +474,23 @@ void __attribute__(( noinline ))  updateGraphic()
 			graphic[i][0] = curVal*scl + 32;
 		}
 	}
-	else
+	else if(screenInd == WAVETBL || screenInd == PHASE || screenInd == HARMONIC)
 	{
 		if(SHIFTMASK(oscInd, bitWave))
 		{
-			wavPtr = (SHIFTMASK(oscInd, bitHarms))? &harmArray[oscInd][0]: &wavArray[oscInd][0];
+			//wavPtr = (SHIFTMASK(oscInd, bitHarms))? &harmArray[oscInd][0]: &wavArray[oscInd][0];
+			wavPtr = &harmArray[oscInd][0];
+
 
 			for(uint16_t i = 0; i < graphCols + 1; i++)
 			{
 				graphic[i][0] = (*(wavPtr + ( (i<<2) & 0x1ff)) >> 26) + 32; 
+			}
+			
+			if(screenInd == PHASE && SHIFTMASK(oscInd, bitPhase))
+			{
+				if(phase_knobs[oscInd].before_harm) vertA = phase_knobs[oscInd].before_phase >> 1;
+				if(phase_knobs[oscInd].after_harm) vertB = phase_knobs[oscInd].after_phase >> 1;
 			}
 		}
 	}
@@ -636,6 +543,10 @@ void __attribute__(( noinline ))  updateGraphic()
 					{
 						i2cWritePtr[i + 1] = (0xff << start) & (0xff >> (7-end));
 						start++;
+					}
+					if(i + ind == vertA || i + ind == vertB)
+					{
+						i2cWritePtr[i + 1] = 0xff;
 					}
 				}
 			}
@@ -1242,10 +1153,12 @@ void __attribute__(( noinline )) checkWriteElem()
 					{
 						case OBJ1: writeBasicInt((int16_t)panLeft[oscInd], 3, 0, 1, 7); break;
 						case OBJ2: writeBasicInt((int16_t)(127 - panLeft[oscInd]), 3, 0, 1, 12); break;
+						//case OBJ3: writeBasicInt((int16_t)(delay_left_knobs[oscInd]), 3, 0, 2, 7); break;
+						//case OBJ4: writeBasicInt((int16_t)(delay_right_knobs[oscInd]), 3, 0, 2, 12); break;
 					}
 					break;
-				 /*
-				 case NOTES:
+				 
+				case NOTES:
 				{
 					//"01234567890123456789"
 					//"NOTES:@@@   EDIT:@@@",
@@ -1289,7 +1202,7 @@ void __attribute__(( noinline )) checkWriteElem()
 					}
 				}
 				break;
-				*/
+				
 				 case FAVS:
 				{
 					//"01234567890123456789"
@@ -1336,6 +1249,30 @@ void __attribute__(( noinline )) checkWriteElem()
 					{
 						writeBasicInt(*(&(harmParams[oscInd].first) + *(rc + 2)), 3, 0, *rc, *(rc + 1)); 
 					} */
+				}
+				break;
+				
+				case PHASE:
+				{
+					//"PRE-HARM  POST-HARM ",
+					//" TOG:@@@    TOG:@@@ ",
+					//"@@@@@@     @@@@@@   "
+					
+					uint8_t ind = curLCD - OBJ1;
+					if(ind < 2) writeStr(2,  (ind & 0x01)? 15: 5, 3, (char *)onOffStr[*((&phase_knobs[oscInd].before_harm) + ind)]); 
+					else if(ind < 4)
+					{
+						uint8_t val = *((&phase_knobs[oscInd].before_harm) + ind);
+						float pct = float(val + 1)/float(2.56);
+						
+						if(!val) pct = 0;
+						else if(val == 255) pct = 100;
+						
+						floatToStr(pct, 3, 1, 0, tempStr);
+						strcat(tempStr, "%");
+						writeStr(3, (ind & 0x01)? 11: 1, 6, tempStr);
+						//writeBasicInt((int16_t)*((&phase_knobs[oscInd].before_harm) + ind),3, 0, 3, (ind & 0x01)? 16: 6);
+					}
 				}
 				break;
 							

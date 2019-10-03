@@ -13,11 +13,16 @@
 //runs once at startup
 void initSynthStuff()
 {	
+
+	
+	//append_data_arrays();
+	read_data_arrays();
 	//get the pointers to the settings variables
 	void *ptrs[] = {
 		toggles, osc_gain, panLeft, midi_knobs,
 		pit_knobs, amp_env_knobs, pit_env_knobs, filt_env_knobs, 
 		filt_knobs, mod_src, arpeggio, harmParams,
+		phase_knobs,
 		amp_env, pit_env, filt_env, arp_env, 
 		vel, note, monoPitch, monoVel 
 	};
@@ -56,6 +61,20 @@ void initSynthStuff()
 	KNOB_S = ~0;//memset(&KNOB_S, 1, sizeof(KNOB_S));
 	
 	
+	//for(int32_t osc = 0; osc < OSC_CNT; ++osc)
+	//{
+	//	delay_read_right[osc] = 0;
+	//	delay_read_left[osc] = 0;
+	//}
+	//memset(delay_left_knobs, 0, sizeof(delay_left_knobs));
+	//memset(delay_right_knobs, 0, sizeof(delay_right_knobs));
+
+	//memset(delay_lefts, 0, sizeof(delay_lefts));
+	//memset(delay_rights, 0, sizeof(delay_rights));
+
+	//delay_write = 1;
+
+
 	
 	
 	//give presets to editing variables
@@ -124,7 +143,8 @@ void __attribute__(( noinline )) resetPatch()
 	}
 	
 	uint8_t resetTogs[7] = {bitOsc, bitMain, bitNotes, bitEnvs, bitAEnv, bitWave, bitPoly};
-	SETBITS(0, resetTogs, sizeof(resetTogs)); 
+	SETBITS(0, resetTogs, sizeof(resetTogs));
+	SETBIT(1, bitPoly);	
 
 	for(uint8_t i = 0; i < OSC_CHILD_CNT; i++)
 	{
@@ -174,6 +194,11 @@ void __attribute__(( noinline )) resetPatch()
 		harmParams[i].first = 2;
 		harmParams[i].cnt = 1;
 		harmParams[i].step = 1;
+		
+		phase_knobs[i].before_phase = 127;
+		phase_knobs[i].before_harm = 0;
+		phase_knobs[i].after_phase = 127;
+		phase_knobs[i].after_harm = 1;
 
 		
 	}
@@ -189,7 +214,136 @@ void __attribute__(( noinline )) resetPatch()
 
 
 
+void __attribute__(( noinline )) phaseWidth(uint32_t width, int32_t *in_arr, int32_t *out_arr)
+{
+	uint32_t incA;
+	uint32_t incB;
+	
+	//width = phase_width;
+	
+	//if(width < 64)
+	{
+		incA = phase_width_incs[width][0];
+		incB = phase_width_incs[width][1];
+	}
+	/* else
+	{
+		incA = phase_width_incs[127 - width][1];
+		incB = phase_width_incs[127 - width][0];
+	} */
+	uint32_t phase = 0;
+	if(width == 0) phase = 0xFFFFFFFF >> 1;
+	
+	for(uint32_t i = 0; i < 512; ++i)
+	{
+		
+		
+		int32_t wavInd = (phase)>>WAVE_SHIFT;
+		int32_t amp1 = *(in_arr + wavInd);
+		int32_t amp2 = *(in_arr + ((wavInd+1) & 0x1FF));
+		uint32_t off = ((phase) & WAVE_MASK) << WAVE_INTERP;
+		*(out_arr + i) = ___SMMUL(amp1,INT_MAX-off);
+		*(out_arr + i) = ___SMMLA(amp2,off,*(out_arr + i))<<1; 
+		
+		if(i >> 1 <= width) phase += incA;
+		else phase += incB;
+	}
+}
+		
+	
+	
+
+	
 void __attribute__(( noinline )) checkHarmQueue()
+{
+	static uint8_t curO = 0;
+	HARMONICS *curHarm = &harmParams[curO];
+	PHASE_KNOBS *cur_phase = &phase_knobs[curO];
+	int8_t *curCnt = &HARM_update[curO];
+	
+	static uint8_t curPart = 1;
+	static int32_t tArr[WAVE_RES] __attribute__ ((section (".sdram")));
+	static int32_t base_arr[WAVE_RES] ;
+	uint32_t gain;
+	if(*curCnt < curHarm->cnt)
+	{
+		//mark count as completed
+		*curCnt = curHarm->cnt;
+
+		//apply before phasing to base wave
+		if(SHIFTMASK(curO, bitPhase) && cur_phase->before_harm)
+		{
+			phaseWidth(cur_phase->before_phase, wavArray[curO], tArr);
+		}
+		//otherwise copy base wave
+		else
+		{
+			memcpy(tArr, wavArray[curO], sizeof(tArr));
+		}
+		
+		//add harmonics
+		if(SHIFTMASK(curO, bitHarms))
+		{
+			memcpy(base_arr, tArr, sizeof(base_arr));
+			
+			gain = GAIN[curHarm->gainFund];
+			for(uint16_t i = 0; i < WAVE_RES; i++)
+			{
+				tArr[i] = ___SMMUL(base_arr[i], gain);//<<1;	
+			}
+
+			curPart = curHarm->first;	
+			//*curCnt += 1;
+
+			//add in remaining partials
+			for(uint8_t p = 0; p < curHarm->cnt; p++)
+			{
+				if(curHarm-> cnt < 2)
+				{
+					gain = GAIN[curHarm->gainFirst];
+				}
+				else
+				{
+					gain = GAIN[int8_t((curHarm->gainLast - curHarm->gainFirst) * float(p)/float((curHarm->cnt)-1)) + curHarm->gainFirst];
+				}
+					
+				uint16_t j = 0;
+				
+				//add in the current partial
+				for(uint16_t i = 0; i < WAVE_RES; i++)
+				{
+					tArr[i] = __SSAT(tArr[i] + (___SMMUL(base_arr[j], gain)), 31);	
+					j = (j + curPart) & WAVE_RES_MASK;
+				}
+
+				curPart += curHarm->step;
+			}
+			
+			for(uint16_t i = 0; i < WAVE_RES; i++)
+			{
+				tArr[i] <<= 1;
+			}
+		}
+		
+		if(SHIFTMASK(curO, bitPhase) && cur_phase->after_harm)
+		{
+			phaseWidth(cur_phase->after_phase, tArr, harmArray[curO]);
+		}
+		else
+		{
+			memcpy(harmArray[curO], &tArr, sizeof(tArr));
+		}
+		GRAPH_update = 1;
+
+	}
+	else
+	{
+		curO = indexIncrement(curO, 1, OSC_CNT);
+	}
+}
+
+	
+/* void __attribute__(( noinline )) checkHarmQueue()
 {
 	static uint8_t curO = 0;
 	HARMONICS *curHarm = &harmParams[curO];
@@ -247,7 +401,7 @@ void __attribute__(( noinline )) checkHarmQueue()
 		curO = indexIncrement(curO, 1, OSC_CNT);
 	}
 }
-
+ */
 void __attribute__(( noinline )) scanInputs()
 {
 	
@@ -458,10 +612,10 @@ uint16_t __attribute__(( noinline )) LEDfromGroup(int8_t osc, uint8_t ind, uint8
 	return 0;
 }
 	
-void __attribute__(( noinline )) copyOsc(uint8_t osc, uint8_t bit)	
+void __attribute__(( noinline )) copyOsc(uint8_t destOsc, uint8_t srcOsc, uint8_t bit)	
 {
 	//dont bother copying itself			
-	if(osc == oscInd) return;
+	if(destOsc == srcOsc) return;
 	
 	//copy entire oscillator
 	if(bit == bitOsc)
@@ -470,28 +624,28 @@ void __attribute__(( noinline )) copyOsc(uint8_t osc, uint8_t bit)
 		for(uint8_t i = 0; i < settingsCnt; i++)
 		{
 			uint8_t sz = ptrSingleSizes[i];
-			void *addSrc = varPtrs[i] + sz * oscInd;
-			void *addDst = varPtrs[i] + sz * osc;
+			void *addSrc = varPtrs[i] + sz * srcOsc;
+			void *addDst = varPtrs[i] + sz * destOsc;
 			memcpy(addDst, addSrc, sz);
 		}
 		
 		//copy wave table reference
-		curWavFile[osc] = curWavFile[oscInd];
+		curWavFile[destOsc] = curWavFile[srcOsc];
 		
 		//handle weirdness of copying poly to mono and visa versa
-		if(osc >= POLY_CNT) CLEARBIT(osc, bitPoly);
-		else if(oscInd >= POLY_CNT) SETBIT(osc, bitPoly);
+		if(destOsc >= POLY_CNT) CLEARBIT(destOsc, bitPoly);
+		else if(srcOsc >= POLY_CNT) SETBIT(destOsc, bitPoly);
 		
 		//if osc poly settings match, copy envelope shit
-		if(SHIFTMASK(osc, bitPoly) == SHIFTMASK(oscInd, bitPoly))
+		if(SHIFTMASK(destOsc, bitPoly) == SHIFTMASK(srcOsc, bitPoly))
 		{
-			uint8_t childTo = firstChild[osc];
-			uint8_t childFrom = firstChild[oscInd];
-			uint8_t children = (osc < POLY_CNT && oscInd < POLY_CNT)? NOTES_CNT: 1;
+			uint8_t childTo = firstChild[destOsc];
+			uint8_t childFrom = firstChild[srcOsc];
+			uint8_t children = (destOsc < POLY_CNT && srcOsc < POLY_CNT)? NOTES_CNT: 1;
 			
-			susOn[osc] = susOn[oscInd];
-			monoPitch[osc] = monoPitch[oscInd];
-			monoVel[osc] = monoVel[oscInd];
+			susOn[destOsc] = susOn[srcOsc];
+			monoPitch[destOsc] = monoPitch[srcOsc];
+			monoVel[destOsc] = monoVel[srcOsc];
 			
 			for(uint8_t i = settingsCnt; i < copyStop; i++)
 			{
@@ -510,34 +664,35 @@ void __attribute__(( noinline )) copyOsc(uint8_t osc, uint8_t bit)
 		switch(bit)
 		{
 			case bitAEnv: 
-				amp_env_knobs[osc] = amp_env_knobs[oscInd]; 
+				amp_env_knobs[destOsc] = amp_env_knobs[srcOsc]; 
 				break;
 			case bitPEnv: 
-				pit_env_knobs[osc] = pit_env_knobs[oscInd]; 
+				pit_env_knobs[destOsc] = pit_env_knobs[srcOsc]; 
 				break;
 			case bitFilt:
-				filt_knobs[osc] = filt_knobs[oscInd];
+				filt_knobs[destOsc] = filt_knobs[srcOsc];
 				extraBits |= (1 << bitFTrack); 
 				break;
 			case bitFEnv:
-				filt_env_knobs[osc] = filt_env_knobs[oscInd];
+				filt_env_knobs[destOsc] = filt_env_knobs[srcOsc];
 				extraBits |= (1 << bitFECut);
 				break;
 			case bitArp:
-				arpeggio[osc] = arpeggio[oscInd];
+				arpeggio[destOsc] = arpeggio[srcOsc];
 				extraBits |= (1 << bitArpFilt) | (1 << bitArpSkip) | (1 << bitArpTrig);
 				break;
 			case bitMain:
-				panLeft[osc] = panLeft[oscInd];	
+				panLeft[destOsc] = panLeft[srcOsc];	
 				break;
 		}
 		
 		//clear affected bits
-		toggles[osc] &= ~extraBits;
+		toggles[destOsc] &= ~extraBits;
 		//copy the relevant bits
-		toggles[osc] |= (extraBits & toggles[oscInd]);
-	}				
-	initPatch(osc, osc);
+		toggles[destOsc] |= (extraBits & toggles[srcOsc]);
+	}	
+	if(destOsc < srcOsc) initPatch(destOsc, srcOsc);
+	else initPatch(srcOsc, destOsc);
 }	
 
 void __attribute__(( noinline )) routeMod(uint8_t destOsc, uint8_t bit, uint16_t sourceBit)	
@@ -731,14 +886,20 @@ uint8_t __attribute__(( noinline ))  finishRecording()
 } */
 
 
-void __attribute__(( noinline )) updateUINT8val(uint8_t *val, int8_t inc, uint8_t isToggle, uint8_t LCD)
+void __attribute__(( noinline )) updateUINT8val(uint8_t *val, int8_t inc, uint8_t isToggle, uint8_t LCD, uint32_t full)
 {
+	uint32_t t = *val;
 	if(isToggle)
 	{
-		if(*val == 0) *val = 127;
-		else *val = 0;	
+		if(t == 0) t = (full ? 255 : 127);
+		else t = 0;	
 	}
-	else *val = __USAT(*val + inc, 7);
+	else
+	{
+		if(full) t = __USAT(t + inc, 8);
+		else t = __USAT(t + inc, 7);
+	}
+	*val = t;
 	LCD_update[LCD] = 1;//*val;
 }
 
@@ -749,10 +910,10 @@ void handleKnobs()
 	static int32_t next_inc = 0;
 	static int32_t next_dir = 0;
 	
-	if(next_loop && !main_clock)
+	if(next_loop && !main_clock1)
 	{
 		int32_t act = next_loop;
-		main_clock = MAIN_FADE;
+		//main_clock = MAIN_FADE;
 		next_loop = 0;
 		switch(act)
 		{
@@ -772,6 +933,10 @@ void handleKnobs()
 				incrementFileIndex(PATCH, next_inc, next_dir);
 				FIL_update[MAINTOG] = 1;//loadFile(fType, oscInd);
 				updateLCDelems(OBJ1, OBJ6);
+				break;
+			//osc copy
+			case EX_COPY:
+				copyOsc(oscInd, next_inc, bitOsc);
 				break;
 		}
 				
@@ -841,7 +1006,15 @@ void handleKnobs()
 						//copy if applicable and cancel any other actions
 						if(wasCopy)
 						{
-							copyOsc(osc, tog);
+							if(tog == bitOsc)
+							{
+								next_loop = EX_COPY;
+								main_clock1 = MAIN_FADE;
+								main_clock2 = MAIN_FADE << 2;
+								next_inc = oscInd;
+							}
+							else copyOsc(osc, oscInd, tog);
+							
 							tog = -1;
 							extra = 0;
 						}
@@ -952,7 +1125,8 @@ void handleKnobs()
 						}
 						else
 						{
-							main_clock = MAIN_FADE;
+							main_clock1 = MAIN_FADE;
+							main_clock2 = MAIN_FADE << 2;
 							next_loop = EX_PATRNDCLR;
 							//resetPatch();
 						}
@@ -977,14 +1151,15 @@ void handleKnobs()
 						else offEvent(0, OSC_CNT-1, ALL_SLOTS, 1);
 						break;
 						
-					//case EX_HARMS: setWavePtrs(oscInd, oscInd); break;
 					case EX_POLY: if(isTog) togglePolyMono(oscInd, oscInd); break;
 					case EX_HOLD1: offEvent(oscInd, oscInd, ALL_SLOTS, 0); break;
 					case EX_HOLD_ALL: offEvent(0, OSC_CNT -1, ALL_SLOTS, 0); break;
 					case EX_ARPNOTREC: scrn = (isTog)? ARPEGNOTES: ARPREC; break;
 					case EX_PATSVLD: scrn = (isTog)? PATCHSV: PATCHLD; break;
+					case EX_HARM: HARM_update[oscInd] = -1; break;
 					case EX_FTRACK: 
-						main_clock = MAIN_FADE; 
+						main_clock1 = MAIN_FADE;
+						main_clock2 = MAIN_FADE << 2; 
 						next_loop = EX_FTRACK;
 						//if(SHIFTMASK(oscInd, bitFTrack)) filt_knobs[oscInd].FRQ = 0;
 						//else filt_knobs[oscInd].FRQ = (A4 + MIDI_KEY_0)<<PITCH_COARSE;
@@ -1059,7 +1234,8 @@ void handleKnobs()
 					next_inc = inc;
 					if(fType == PATCH) 
 					{
-						main_clock = MAIN_FADE;
+						main_clock1 = MAIN_FADE;
+						main_clock2 = MAIN_FADE;
 						next_loop = EX_PATCHLD;
 					}
 					else
@@ -1552,19 +1728,37 @@ void handleKnobs()
 				
 				case OUTS:
 				{
-					if(inputInd > KNOB8)
+					int32_t knob = knobPos(KNOB3, inputInd);
+					if(knob < 2)
 					{
-						panLeft[oscInd] = 64;//((inputInd - KNOB3) & 1)? ((panLeft[oscInd] == 0)? 127 : (panLeft[oscInd] > 64)? 64: 0;) : 
-																	//((panLeft[oscInd] == 127)? 0 : (panLeft[oscInd] < 64)? 64: 127);
+						if(inputInd > KNOB8)
+						{
+							panLeft[oscInd] = 64;//((inputInd - KNOB3) & 1)? ((panLeft[oscInd] == 0)? 127 : (panLeft[oscInd] > 64)? 64: 0;) : 
+																		//((panLeft[oscInd] == 127)? 0 : (panLeft[oscInd] < 64)? 64: 127);
+						}
+						else panLeft[oscInd] = __USAT(panLeft[oscInd] - inc, 7);
+						updateLCDelems(OBJ1, OBJ2);//memset(&LCD_update[OBJ1], 1, 2);
 					}
-					else panLeft[oscInd] = __USAT(panLeft[oscInd] - inc, 7);
-					updateLCDelems(OBJ1, OBJ2);//memset(&LCD_update[OBJ1], 1, 2);
+					//else
+					//{
+					//	const uint32_t sh = 5;
+					//	if(!(knob & 1) || knob > 3)
+					//	{
+					//		updateUINT8val(&delay_left_knobs[oscInd], inc, inputInd > KNOB8, OBJ3, 1); 
+					//		delay_read_left[oscInd] = delay_write - (delay_left_knobs[oscInd] << sh) - 1;
+					//	}
+					//	if((knob & 1) || knob > 3)
+					//	{
+					//		updateUINT8val(&delay_right_knobs[oscInd], inc, inputInd > KNOB8, OBJ4, 1); 
+					//		delay_read_right[oscInd] = delay_write - (delay_right_knobs[oscInd] << sh) - 1;
+					//	}
+					//}
 				}
 				break;
 				
 				
 				
-				/* case NOTES:
+				case NOTES:
 				{
 					uint8_t stepInd = 0;
 					if(oscInd >= POLY_CNT) notesPage = 0;
@@ -1618,7 +1812,7 @@ void handleKnobs()
 							
 					}					
 				}
-				break; */
+				break;
 				
 				case HARMONIC:
 				{
@@ -1631,29 +1825,34 @@ void handleKnobs()
 					HARM_update[oscInd] = -1;
 				}
 				break;
-				/* {
-					// "PRTL1 @@@   *CAPTURE",
-					// "STEP @@@  TOTCNT @@@",
-					// "GAIN1 @@@  GAINL @@@"
-					
-					uint8_t *curPtr = &harmParams[oscInd].first;
-					if(inputInd != KNOB4)
+				
+				case PHASE:
+				{
+					uint8_t pos = knobPos(KNOB3, inputInd);
+					if(pos < 4)
 					{
-						if(inputInd == KNOB_BUT4)
+						pos = (pos & 1)? 1 : 0;
+						uint8_t *p = &phase_knobs[oscInd].before_harm + pos;
+						*p = !(*p);
+						LCD_update[OBJ1 + pos] = 1;
+					}
+					else
+					{
+						pos = (pos & 1)? 1 : 0;
+						if(inputInd >= KNOB_BUT1)
 						{
-							//capture
+							*(&phase_knobs[oscInd].before_phase + pos) = 127;
+							LCD_update[OBJ3 + pos] = 1;
 						}
-						else
+						else 
 						{
-							done = knobPos(KNOB3, inputInd);
-							LCD_update[OBJ1 + done] = 1;
-							if(done) done -= 1;
-							*(curPtr + done) = __USAT(*(curPtr + done) + inc, 7);
-							HARM_update[oscInd][0] = 0;
+							updateUINT8val(&phase_knobs[oscInd].before_phase + pos, inc, 0, pos + OBJ3, 1);
 						}
 					}
+					HARM_update[oscInd] = -1;
 				}
-				break; */
+				break;
+
 				
 				
 			}

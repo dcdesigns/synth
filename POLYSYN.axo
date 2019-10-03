@@ -43,6 +43,7 @@
 		int32_t ctrlCut[OSC_CNT];
 		uint32_t ctrlRes[OSC_CNT];
 		uint32_t kGainSum[OSC_CHILD_CNT];
+		uint32_t kG[OSC_CHILD_CNT];
 		uint32_t sGain[OSC_CHILD_CNT];
 		uint32_t sSEEK[OSC_CHILD_CNT];
 		uint32_t kPan[OSC_CNT];
@@ -105,7 +106,7 @@
 					fEnvFrq[parent] = FULLMASK(parent, bitFECut);
 					sWaveMask[parent] = FULLMASK(parent, bitWave);
 					modMask[parent] = FULLMASK(parent, bitMod);
-					curWave[parent] = (SHIFTMASK(parent, bitHarms))? &harmArray[parent][0]: &wavArray[parent][0];
+					//curWave[parent] = (SHIFTMASK(parent, bitHarms))? &harmArray[parent][0]: &wavArray[parent][0];
 					//gateMask[parent] = modMask[parent] & mod_src[GATE_MOD][parent];
 					
 				}
@@ -149,6 +150,10 @@
 		
 		updateLCDelems(SCRN, OBJ6);
 		ticks = 0;
+		for(uint8_t parent = 0; parent < OSC_CNT; parent++)
+		{
+			curWave[parent] = &harmArray[parent][0];				
+		}
 		Thd = chThdCreateStatic(waThreadX, sizeof(waThreadX), NORMALPRIO, ThreadX, (void *)this);
 
 	]]></code.init>
@@ -197,11 +202,17 @@
 			}
 			
 		}
-		if(main_clock)
+		if(main_clock1)
 		{
 			mainR = SEEK[14];
 			main_mask = 0;
-			--main_clock;
+			--main_clock1;
+		}
+		else if(main_clock2)
+		{
+			mainR = SEEK[14];
+			main_mask = 0;
+			--main_clock2;
 		}
 		else
 		{
@@ -473,9 +484,11 @@
 				curEnv++;
 			}
 		}			
-
-			
-
+		
+		for(uint8_t child = 0; child < OSC_CHILD_CNT; child++)
+		{
+			kG[child] = ___SMMUL(amp_env[child].val, kGainSum[child])<<1;	
+		}
 		
 	]]></code.krate>
 	
@@ -520,7 +533,7 @@
 
 			for(uint8_t child = 0; child < OSC_CHILD_CNT; child++)
 			{
-				sGain[child] += ___SMMUL((___SMMUL(amp_env[child].val, kGainSum[child])<<1) - sGain[child], sSEEK[child]);
+				sGain[child] += ___SMMUL(kG[child] - sGain[child], sSEEK[child]);
 				lastSignal[child] = ___SMMUL(lastSignal[child], sGain[child]);
 
 			}
@@ -583,9 +596,41 @@
 			outlet_L += L;
 		} 
 		
+		
+		/* uint8_t first = 0;
+		for(uint8_t parent = 0; parent < POLY_CNT; parent++)
+		{	
+			
+			uint8_t last = first + NOTES_CNT;
+			int32_t combo = 0;
+			for(uint8_t child = first; child < last; child++)
+			{
+				combo += lastSignal[child];
+			}
+			lastPolyCombo[parent] = combo;
+			delay_lefts[delay_write][parent] = combo;
+			int32_t sig = ___SMMUL(kMain[parent], delay_lefts[++delay_read_left[parent]][parent])<<1; 			
+			int32_t L = ___SMMUL(sig,  kPan[parent])<<5;
+		
+			
+			outlet_R += sig - L;
+			outlet_L += L;
+		}
+		//memcpy(&delay_lefts[delay_write][0], lastPolyCombo, 64);
+		for(uint8_t parent = POLY_CNT; parent < OSC_CNT; parent++)
+		{	
+			delay_lefts[delay_write][parent] = lastSignal[16 + parent];
+			int32_t sig = ___SMMUL(kMain[parent], delay_lefts[++delay_read_left[parent]][parent])<<1; 			
+			int32_t L = ___SMMUL(sig,  kPan[parent])<<5;
+		
+			
+			outlet_R += sig - L;
+			outlet_L += L;
+		} */
+		
 		outlet_R = ___SMMUL(outlet_R, kMainOut)<<1;
 		outlet_L = ___SMMUL(outlet_L, kMainOut)<<1;
-
+		//++delay_write;
 
 	]]></code.srate>
 	

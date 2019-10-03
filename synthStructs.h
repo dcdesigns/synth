@@ -51,6 +51,14 @@ struct MIDI_PARAMS {
 	uint8_t CC_levs[4];
 };
 
+struct PHASE_KNOBS {
+	uint8_t before_harm;
+	uint8_t after_harm;
+	uint8_t before_phase;
+	uint8_t after_phase;
+};
+	
+
 //osc child structs
 struct AMP_ENV {
 	uint32_t stage;

@@ -22,7 +22,7 @@ void __attribute__(( noinline )) routeMod(uint8_t destOsc, uint8_t bit, uint16_t
 //void togglePitchType();
 //void __attribute__(( noinline )) updateSetGain(uint8_t firstOsc, uint8_t lastOsc);
 //void  __attribute__(( noinline )) incrementGain(uint8_t gainInd, int8_t inc, uint8_t spreadInd);
-void __attribute__(( noinline )) updateUINT8val(uint8_t *val, int8_t inc, uint8_t isToggle, uint8_t LCD);
+void __attribute__(( noinline )) updateUINT8val(uint8_t *val, int8_t inc, uint8_t isToggle, uint8_t LCD, uint32_t full = 0);
 void handleKnobs();
 void __attribute__(( noinline )) updateSingleMod(uint8_t modType, uint8_t destParent, uint8_t sourceIndex);
 void updateAllMod(uint8_t first, uint8_t last);

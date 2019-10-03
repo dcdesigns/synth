@@ -124,10 +124,16 @@ void __attribute__(( noinline )) floatToStr(float num, uint8_t leading, uint8_t 
 			digi */
 	
 	//LogTextMessage("%u %u %u %s %d", digits[0], digits[1], digits[2], str, rem);
+	int32_t had_val = 0;
 	for(uint8_t i = firstDigit; i < lastDigit; i++)
 	{
-		if(i == 5) strcat(str, ".");
-		temp[0] = digits[i] + '0';
+		if(!had_val && i < 5 && !digits[i]) temp[0] = ' ';
+		else
+		{
+			had_val = 1;
+			if(i == 5) strcat(str, ".");
+			temp[0] = digits[i] + '0';	
+		}
 		strcat(str, temp);
 		
 	}

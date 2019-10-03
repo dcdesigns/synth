@@ -343,6 +343,130 @@ uint8_t savePatch()
 }
 
 
+/* uint32_t save_data_arrays()
+{
+	LogTextMessage("s");
+	char path[50];
+	char file[] = "DATA_DO_NOT_DELETE";
+	FIL *data_file;
+	UINT bytesRead;
+	
+	const void *ps[] = {data_phase_width_incs, data_PHASEINCS, data_ATTACK_K, data_SEEK, data_SEEK_S_RATE, data_GAIN, data_VELGAIN, data_TIME, data_screens, data_SCREENS, data_noteLabels};
+	uint16_t sz[] = {256 * 2 * 4, 257 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 2, 18 * 4 * 21, 18 * 9, 169 * 5}; 
+	makeTempPath((char*)ROOT_FOLDER, file, path);
+	
+	//create the file
+	if(f_open(data_file, path, FA_CREATE_ALWAYS | FA_READ | FA_WRITE) != FR_OK) return 0;
+	
+	for(int32_t i = 0; i < 8; ++i)
+	{
+		void *p = (void *)ps[i];
+		uint16_t left = sz[i];
+		uint16_t write;
+		
+		while(left)
+		{
+			write = left;
+			if(write > 256) write = 256;
+			
+			if(f_write(data_file, p, write, &bytesRead) != FR_OK) return 0;
+			p += write;
+			left -= write;
+		}
+	}
+	
+	f_close(data_file);
+	LogTextMessage("e");
+	return 1;
+	 
+	//const char noteLabels[169][5];
+	//const char screens[18][4][21];
+ 
+} */
+
+/* uint32_t append_data_arrays()
+{
+	LogTextMessage("sa");
+	char path[50];
+	char file[] = "DATA_DO_NOT_DELETE";
+	FIL *data_file;
+	UINT bytesRead;
+	
+	const void *ps[] = {data_screens, data_SCREENS, data_noteLabels};
+	uint16_t sz[] = {SCREEN_CNT * 4 * 21, SCREEN_CNT * 9, 169 * 5}; 
+	makeTempPath((char*)ROOT_FOLDER, file, path);
+	
+	//create the file
+	if(f_open(data_file, path, FA_OPEN_EXISTING | FA_WRITE) != FR_OK) return 0;
+	if(f_lseek(data_file, 5892) != FR_OK) return 0;
+	
+	for(int32_t i = 0; i < 3; ++i)
+	{
+		void *p = (void *)ps[i];
+		uint16_t left = sz[i];
+		uint16_t write;
+		
+		while(left)
+		{
+			write = left;
+			if(write > 256) write = 256;
+			
+			if(f_write(data_file, p, write, &bytesRead) != FR_OK) return 0;
+			p += write;
+			left -= write;
+		}
+	}
+	
+	f_close(data_file);
+	LogTextMessage("ea");
+	return 1;
+	 
+	//const char noteLabels[169][5];
+	//const char screens[18][4][21];
+ 
+} */
+
+uint32_t read_data_arrays()
+{
+	//LogTextMessage("s");
+	char path[50];
+	char file[] = "DATA_DO_NOT_DELETE";
+	FIL *data_file;
+	UINT bytesRead;
+	
+	const void *ps[] = {phase_width_incs, PHASEINCS, ATTACK_K, SEEK, SEEK_S_RATE, GAIN, VELGAIN, TIME, screens, SCREENS, noteLabels};
+	uint16_t sz[] = {256 * 2 * 4, 257 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 2, SCREEN_CNT * 4 * 21, SCREEN_CNT * 9, 169 * 5}; 
+	makeTempPath((char*)ROOT_FOLDER, file, path);
+	
+	//create the file
+	if(f_open(data_file, path, FA_READ) != FR_OK) return 0;
+	
+	for(int32_t i = 0; i < 11; ++i)
+	{
+		void *p = (void *)ps[i];
+		uint16_t left = sz[i];
+		uint16_t read;
+		
+		while(left)
+		{
+			read = left;
+			if(read > 256) read = 256;
+			
+			if(f_read(data_file, p, read, &bytesRead) != FR_OK) return 0;
+			p += read;
+			left -= read;
+		}
+	}
+	
+	f_close(data_file);
+	//LogTextMessage("e");
+	return 1;
+	 
+	//const char noteLabels[169][5];
+	//const char screens[18][4][21];
+ 
+}
+
 
 //helpers
 void  __attribute__(( noinline )) makeTempPath(char *basePath, char *newChunk, char *outputStr)
@@ -481,18 +605,18 @@ void __attribute__(( noinline )) checkFileQueue()
 			//read the file
 			if(fType == WAVE)
 			{			
-				uint16_t bytesLeft = WAVE_RES * WAVE_BYTES;
-				uint16_t pos = 0;
+				uint16_t bytesLeft = WAVE_RES * 4;
+				void *p = wavArray[curFIL];
 				
 				if(filBrowser[fType].curFile.fsize < bytesLeft) //if the file is smaller than expected, only read in the length of the file
 					bytesLeft = filBrowser[fType].curFile.fsize;
 
 				while (bytesLeft > 0) 
 				{
-					if(f_read(&filBrowser[fType].curFile, &wavArray[curFIL][pos], WAVE_BYTES, &bytesRead) != FR_OK) break; //load the file into the array piece by piece
-					else if (bytesRead < WAVE_BYTES) break;
+					if(f_read(&filBrowser[fType].curFile, p, 256, &bytesRead) != FR_OK) break; //load the file into the array piece by piece
+					else if (bytesRead < 256) break;
 					bytesLeft -= bytesRead;
-					pos += 1;
+					p += bytesRead;
 				} 		
 				
 			}
