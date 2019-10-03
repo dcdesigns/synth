@@ -210,6 +210,7 @@
 		}
 		else if(main_clock2)
 		{
+			memset(samps, 0, sizeof(samps));
 			mainR = SEEK[14];
 			main_mask = 0;
 			--main_clock2;

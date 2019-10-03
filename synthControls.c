@@ -1235,7 +1235,7 @@ void handleKnobs()
 					if(fType == PATCH) 
 					{
 						main_clock1 = MAIN_FADE;
-						main_clock2 = MAIN_FADE;
+						main_clock2 = MAIN_FADE << 2;
 						next_loop = EX_PATCHLD;
 					}
 					else
