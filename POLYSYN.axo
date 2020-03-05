@@ -12,7 +12,7 @@
 		<frac32buffer name="R" description="Right"/>
 
 	</outlets>
-	
+         
 	<displays/>
 	
 
@@ -50,6 +50,7 @@
 		uint32_t sGain[OSC_CHILD_CNT];
 		uint32_t sSEEK[OSC_CHILD_CNT];
 		uint32_t kPan[OSC_CNT];
+		int32_t wavSignal[OSC_CHILD_CNT];
 		//uint32_t kPanSum[OSC_CNT];
 		uint32_t kMain[OSC_CNT];
 		uint32_t kMainOut;
@@ -82,6 +83,7 @@
 		uint32_t filtOn[OSC_CNT];
 		uint32_t modMask[OSC_CNT];
 		uint32_t isAudio[OSC_CNT];
+		int32_t *audioSrc[OSC_CHILD_CNT];
 		//uint32_t gateMask[OSC_CNT];
 		uint32_t sWaveMask[OSC_CNT];
 		//uint32_t sFiltMask;
@@ -99,7 +101,10 @@
 				checkFileQueue(); 
 				checkHarmQueue(); 
 				checkWriteElem(); 
-
+				
+				//memset(audioSrc, NULL, sizeof(audioSrc));
+				//memset(isAudio, 0, sizeof(isAudio));
+				
 				for(uint8_t parent = 0; parent < OSC_CNT; parent++)
 				{
 					pEnvOn[parent] = FULLMASK(parent, bitPEnv);
@@ -110,11 +115,61 @@
 					fEnvFrq[parent] = FULLMASK(parent, bitFECut);
 					sWaveMask[parent] = FULLMASK(parent, bitWave);
 					modMask[parent] = FULLMASK(parent, bitMod);
+										
+					uint32_t do_inc = 0;
+					uint32_t sourceInd = 40;
+					int32_t *firstSrc = NULL;
+					if(SHIFTMASK(parent, bitAudio))
+					{
+						sourceInd = ((toggles[parent] >> (bitAudio + 1)) & 0xF);
+						
+						//audio in
+						if(sourceInd < 3)
+						{
+							firstSrc = &(lastAudio[sourceInd]);
+						}	
+						else
+						{
+							sourceInd -= 3;
+							//main 
+							if(sourceInd >= OSC_CNT)
+							{
+								firstSrc = &lastMain;
+							}
+							//poly to poly
+							else if(sourceInd < POLY_CNT && parent < POLY_CNT)
+							{
+								firstSrc = &(lastSignal[firstChild[sourceInd]]);
+								do_inc = 1;
+							}
+							//poly to mono
+							else if(sourceInd < POLY_CNT)
+							{
+								firstSrc = &(lastPolyCombo[sourceInd]);
+							}
+							//mono to either
+							else
+							{
+								firstSrc = &(lastSignal[firstChild[sourceInd]]);
+							}
+						}
+					}
+					if(firstSrc != NULL)
+					{
+						isAudio[parent] = 1;
+						uint8_t first = firstChild[parent];
+						uint8_t last = ((parent < POLY_CNT)? NOTES_CNT: 1) + first;
+						for(uint32_t child = first; child < last; ++child)
+						{
+							audioSrc[child] = firstSrc;
+							if(do_inc) ++firstSrc;
+						}	
+					}
+					else
+					{
+						isAudio[parent] = 0;
+					}
 					
-					if(SHIFTMASK(parent, bitAudMX)) isAudio[parent] = 1;
-					else if(SHIFTMASK(parent, bitAudL)) isAudio[parent] = 2;
-					else if(SHIFTMASK(parent, bitAudR)) isAudio[parent] = 3;
-					else isAudio[parent] = 0;
 					//curWave[parent] = (SHIFTMASK(parent, bitHarms))? &harmArray[parent][0]: &wavArray[parent][0];
 					//gateMask[parent] = modMask[parent] & mod_src[GATE_MOD][parent];
 					
@@ -525,10 +580,9 @@
 			{
 				if(isAudio[parent])
 				{
-					uint32_t aInd = isAudio[parent] - 1;
 					for(uint8_t child = first; child < last; child++)
 					{
-						lastSignal[child] = lastAudio[aInd];
+						wavSignal[child] = *(audioSrc[child]);
 					}
 				}
 				else
@@ -541,8 +595,8 @@
 						int32_t amp1 = curWave[parent][wavInd];
 						int32_t amp2 = curWave[parent][(wavInd+1) & 0x1FF];
 						uint32_t off = ((phase[child]) & WAVE_MASK) << WAVE_INTERP;
-						lastSignal[child] = ___SMMUL(amp1,INT_MAX-off);
-						lastSignal[child] = ___SMMLA(amp2,off,lastSignal[child])<<1; 
+						wavSignal[child] = ___SMMUL(amp1,INT_MAX-off);
+						wavSignal[child] = ___SMMLA(amp2,off,wavSignal[child])<<1; 
 
 					}
 				}
@@ -551,7 +605,7 @@
 			{
 				for(uint8_t child = first; child < last; child++)
 				{
-					lastSignal[child] = (int32_t)(GenerateRandomNumber());
+					wavSignal[child] = (int32_t)(GenerateRandomNumber());
 				}
 			}
 			
@@ -565,7 +619,7 @@
 			for(uint8_t child = 0; child < OSC_CHILD_CNT; child++)
 			{
 				sGain[child] += ___SMMUL(kG[child] - sGain[child], sSEEK[child]);
-				lastSignal[child] = ___SMMUL(lastSignal[child], sGain[child]);
+				wavSignal[child] = ___SMMUL(wavSignal[child], sGain[child]);
 
 			}
 		}
@@ -577,7 +631,7 @@
 			
 			int32_t *curSamps = &samps[child][0];
 			biquad_coefficients *curCoeff = &filt_coeff[child];
-			int32_t filtered = ___SMMUL(curCoeff->cxn_0, lastSignal[child]);
+			int32_t filtered = ___SMMUL(curCoeff->cxn_0, wavSignal[child]);
 			filtered = ___SMMLA(curCoeff->cxn_1, *curSamps, filtered);
 			filtered = ___SMMLA(curCoeff->cxn_2,  *(curSamps + 1), filtered);
 			filtered = ___SMMLS(curCoeff->cyn_1,  *(curSamps + 2), filtered);
@@ -586,7 +640,7 @@
 			*(curSamps + 3) =  *(curSamps + 2);
 			*(curSamps + 2) = filtered;
 			*(curSamps + 1) =  *curSamps;
-			*curSamps = lastSignal[child];
+			*curSamps = wavSignal[child];
 			lastSignal[child] = filtered;
 		}
 		
@@ -594,6 +648,7 @@
 		//apply main outs
 		outlet_L = 0;
 		outlet_R = 0;
+		lastMain = 0;
 	
 		uint8_t first = 0;
 		for(uint8_t parent = 0; parent < POLY_CNT; parent++)
@@ -606,6 +661,7 @@
 				combo += lastSignal[child];
 			}
 			lastPolyCombo[parent] = combo;
+			lastMain += combo;
 			combo = ___SMMUL(kMain[parent], combo)<<1;
 			
 			
@@ -620,6 +676,7 @@
 		first -= POLY_CNT;
 		for(uint8_t parent = POLY_CNT; parent < OSC_CNT; parent++)
 		{	
+			lastMain += lastSignal[parent + first];
 			int32_t sig = ___SMMUL(kMain[parent], lastSignal[parent + first])<<1;
 			//int32_t L = ___SMMUL(sig,  __USAT((kPan[parent])+ (modMask[parent] & (*(modSrc[PAN_MOD][firstChild[parent]])>>1)),27))<<5;
 			int32_t L = ___SMMUL(sig,  kPan[parent])<<5;
@@ -665,7 +722,6 @@
 		
 		outlet_R = ___SMMUL(outlet_R, kMainOut)<<1;
 		outlet_L = ___SMMUL(outlet_L, kMainOut)<<1;
-		
 		
 		//++delay_write;
 

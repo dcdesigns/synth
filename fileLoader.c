@@ -24,13 +24,13 @@ void initFILES(uint8_t fType)
 	{
 		strcpy(curDir, WAVE_FOLDER);
 		browseCnt[fType].dirs = 1;
-		strcpy(dirs[fType][0].name, "AUD IN");
+		strcpy(dirs[fType][0].name, "AUDIO");
 		dirs[fType][0].numFiles = 3;
 		dirs[fType][0].insertAfter = &files[fType][2];
 		
-		const char auds[3][6] = {"MIX", "LEFT", "RIGHT"};
+		const char auds[10][7] = {"IN MX", "IN L", "IN R", "POLY 1", "POLY 2", "MONO 1", "MONO 2", "MONO 3", "MONO 4", "MAIN"};
 
-		for(uint32_t i = 0; i < 3; ++i)
+		for(uint32_t i = 0; i < 10; ++i)
 		{
 			filsList *cur = &files[fType][i];
 			++browseCnt[fType].files;
@@ -38,7 +38,7 @@ void initFILES(uint8_t fType)
 			cur->filInd = i + 1;
 			cur->dirInd = 0;
 			if(i > 0) cur->prev = &files[fType][i-1];
-			if(i < 3) cur->next = &files[fType][i+1];
+			if(i < 8) cur->next = &files[fType][i+1];
 		}
 		
 		/* for(uint8_t curOsc = 0; curOsc < OSC_CNT; curOsc++) 
@@ -605,12 +605,11 @@ void __attribute__(( noinline )) checkFileQueue()
 			fType = WAVE;
 			curFile = curWavFile[curFIL];
 			HARM_update[curFIL] = -1;
-			CLEARBIT(curFIL, bitAudMX);
-			CLEARBIT(curFIL, bitAudL);
-			CLEARBIT(curFIL, bitAudR);
+			toggles[curFIL] &= ~(((1 << 5) - 1) << bitAudio);
+
 			if(curFile->dirInd == 0)
 			{	
-				SETBIT(curFIL, bitAudMX + curFile->filInd);
+				toggles[curFIL] |= ((((curFile->filInd - 1) << 1) | 1) << bitAudio);
 				skip_it = 1;
 			}
 		}

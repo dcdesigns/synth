@@ -170,9 +170,8 @@ static const uint8_t LCDelems = OBJ6 + 1;
 #define bitKeyVel 21
 #define bitHarms 22
 #define bitPhase 23
-#define bitAudMX 24
-#define bitAudL 25
-#define bitAudR 26
+#define bitAudio 24
+//next four bits define audio index
 	
 	
 #define EX_WAVE 1

@@ -378,18 +378,9 @@ void __attribute__(( noinline ))  updateGraphic()
 			graphic[i][0] = curVal*scl + 32;
 		}
 	}
-	else if(screenInd == ARPEGSETUP || screenInd == ARPEGNOTES)
+	/* else if(screenInd == ARPEGSETUP || screenInd == ARPEGNOTES)
 	{
-		/* struct ARP_KNOBS {
-			uint8_t steps;
-			uint8_t G;
-			uint16_t T;
-			
-			int8_t P[MAXARP];
-			uint8_t V[MAXARP];
-			int8_t E[MAXARP];
-			float BPM;	
-		}; */
+
 		ARP_KNOBS *ptr = &arpeggio[oscInd];
 		int8_t sh = 5;
 		uint32_t cycles = 0;
@@ -473,7 +464,7 @@ void __attribute__(( noinline ))  updateGraphic()
 			//LogTextMessage("%d", curVal);
 			graphic[i][0] = curVal*scl + 32;
 		}
-	}
+	} */
 	else if(screenInd == WAVETBL || screenInd == PHASE || screenInd == HARMONIC)
 	{
 		if(SHIFTMASK(oscInd, bitWave))
