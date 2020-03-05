@@ -143,7 +143,7 @@ const char notesStr[2][4] = {"PIT", "VEL"};
 const char trackStr[2][4] = {"YES", "ENV"};
 const char velStr[3][7] = {"NONE","KEYVEL","WINDCC"};
 const char loopStr[4][6] = {"TRIG-", "LOOP-", "SKIP", "ALL"};
-const char modStrA[2][5] = {"----", "MAIN"};
+const char modStrA[5][5] = {"----", "MAIN", "AUDM", "AUDL", "AUDR"};
 const char modStrB[9][4] = {"WND", "MDW", "PBD", "SUS", "OUT", "AMP", "PIT", "FLT", "ARP"};
 const char modStrO[6][3] = {"P1", "P2", "M1", "M2", "M3", "M4"}; 
 
@@ -1036,8 +1036,9 @@ void __attribute__(( noinline )) checkWriteElem()
 					FILT_KNOBS *curFilt = &filt_knobs[oscInd];
 					switch(curLCD)
 					{
-						//case OBJ1: writeStr(1, 6, 3, (char *)yesNoStr[SHIFTMASK(oscInd, bitFTrack)]); break;	
+							
 						case OBJ1: writeStr(1,5,5, (char *)filtStr[curFilt->TYPE]); break;
+						case OBJ2: writeStr(1, 17, 3, (char *)yesNoStr[SHIFTMASK(oscInd, bitFTrack)]); break;
 
 						case OBJ3:
 							pitchStr(tempStr, curFilt->FRQ, SHIFTMASK(oscInd, bitFTrack), 0, 0);
@@ -1128,8 +1129,15 @@ void __attribute__(( noinline )) checkWriteElem()
 					{						
 						uint8_t screenInd = curLCD-OBJ1;
 						uint8_t srcInd = mod_src[oscInd][screenInd];
-						uint8_t eInd = (srcInd == 0)? 0: (srcInd == MOD_MAIN_OUT)? 1 : 2;
-						if(eInd < 2) strcpy(tempStr, modStrA[eInd]);
+						
+						uint8_t eInd = 5;
+						if(srcInd == 0) eInd = 0;
+						else if(srcInd == MOD_MAIN_OUT) eInd = 1;
+						else if(srcInd == MOD_AUDIO_MX) eInd = 2;
+						else if(srcInd == MOD_AUDIO_L) eInd = 3;
+						else if(srcInd == MOD_AUDIO_R) eInd = 4;
+
+						if(eInd < 5) strcpy(tempStr, modStrA[eInd]);
 						else
 						{
 							eInd = (--srcInd) % TOTAL_MOD_SRC;

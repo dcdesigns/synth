@@ -85,6 +85,7 @@ void initSynthStuff()
 	saveDirInd = 0;
 	recording = 0;
 	recEnv = 0x7;
+	indBPM = 2;
 	
 	//initialize all indexes
 	oscInd = 0;
@@ -128,7 +129,8 @@ void __attribute__(( noinline )) initPatch(uint8_t first, uint8_t last)
 //clear patch to default settings
 void __attribute__(( noinline )) resetPatch()
 {
-
+	uint32_t midiThru = SHIFTMASK(MAINTOG, bitMidiThru);
+	
 	for(uint8_t i = 0; i < resetCnt; i++)
 	{
 		uint16_t rem = ptrSizes[i];
@@ -206,7 +208,7 @@ void __attribute__(( noinline )) resetPatch()
 	
 	osc_gain[0] = 50;
 	amp_env_knobs[0].rate[0] = 2;
-
+	if(midiThru) SETBIT(MAINTOG, bitMidiThru);
 	
 	initPatch(0, OSC_CNT-1);
 	
@@ -924,9 +926,8 @@ void handleKnobs()
 				TOGGLEBIT(oscInd, bitFTrack);
 				if(SHIFTMASK(oscInd, bitFTrack)) filt_knobs[oscInd].FRQ = 0;
 				else filt_knobs[oscInd].FRQ = (A4 + MIDI_KEY_0)<<PITCH_COARSE;
-				LCD_update[OBJ1] = 1;
+				LCD_update[OBJ2] = 1;
 				LCD_update[OBJ3] = 1;
-				updateLEDs();
 				break;
 			//patch load
 			case EX_PATCHLD:
@@ -939,12 +940,8 @@ void handleKnobs()
 				copyOsc(oscInd, next_inc, bitOsc);
 				break;
 		}
-				
-			
-		
+		updateLEDs();
 	}
-		
-		
 
 	if(inputQueue[readInd][2])
 	{
@@ -1192,7 +1189,7 @@ void handleKnobs()
 			{
 				CLEARBIT(MAINTOG, bitRoute);
 				blinkInd = -1;
-			}
+			}			
 			
 			updateLCDelems(SCRN, OBJ6);//memset(&LCD_update[0], 1,  LCDelems);//
 			//update leds
@@ -1503,26 +1500,23 @@ void handleKnobs()
 					
 					switch(inputInd)
 					{	
-						//track keys
-						/* case KNOB3:
-						case KNOB_BUT3:
-							main_clock = MAIN_FADE;
-							TOGGLEBIT(oscInd, bitFTrack);
-							next_loop = EX_FTRACK;
-							// if(SHIFTMASK(oscInd, bitFTrack)) curFilt->FRQ = 0;
-							// else curFilt->FRQ = (A4 + MIDI_KEY_0)<<PITCH_COARSE;
-							// LCD_update[OBJ1] = 1;
-							// LCD_update[OBJ3] = 1;
-							break; */
+						
 						
 						//type
 						case KNOB3:
 						case KNOB_BUT3:
-						case KNOB4:
-						case KNOB_BUT4:
+						
 							curFilt->TYPE = indexIncrement(curFilt->TYPE, inc, 3);
 							//curLCD = 2;
 							LCD_update[OBJ1] = 1;
+							break;
+						
+						//track keys
+						case KNOB4:
+						case KNOB_BUT4:
+							main_clock1 = MAIN_FADE;
+							main_clock2 = MAIN_FADE << 2; 
+							next_loop = EX_FTRACK;
 							break;
 						
 						//edit pitch
@@ -1871,10 +1865,20 @@ void __attribute__(( noinline )) updateSingleMod(uint8_t modType, uint8_t destPa
 	uint8_t children = childCnt(destParent);//(destParent < POLY_CNT)? NOTES_CNT : 1;
 	uint8_t firstDest = firstChild[destParent];
 	
+	int32_t *src = NULL;
+	
 	//simple mods
-	if(sourceIndex == MOD_NONE || sourceIndex == MOD_MAIN_OUT)
+	switch(sourceIndex)
 	{
-		int32_t *src = (sourceIndex == MOD_MAIN_OUT)? &lastMain : (modType == GATE_MOD)? &maxMod : &zeroMod; 
+		case MOD_NONE: src = (modType == GATE_MOD)? &maxMod : &zeroMod; break;
+		case MOD_MAIN_OUT: src = &lastMain; break;
+		case MOD_AUDIO_L: 
+		case MOD_AUDIO_R:
+		case MOD_AUDIO_MX: 
+			src = &lastAudio[MOD_AUDIO_MX - sourceIndex]; break;
+	}
+	if(src)
+	{
 		for(uint8_t j = 0; j < children; j++)
 		{
 			modSrc[modType][firstDest + j] = src;
@@ -1890,7 +1894,7 @@ void __attribute__(( noinline )) updateSingleMod(uint8_t modType, uint8_t destPa
 		for(uint8_t child = 0; child < children; child++)
 		{
 			if(eInd < 4) modSrc[modType][firstDest + child] = &kCCs[eInd][oInd];
-			else if(eInd == OSC_SRC) modSrc[modType][firstDest + child] = &lastSignal[sourceChild];
+			else if(eInd == OSC_SRC) modSrc[modType][firstDest + child] = (srcInc && children == 1) ? &lastPolyCombo[oInd] : &lastSignal[sourceChild];
 			else if(eInd == AENV_SRC) modSrc[modType][firstDest + child] = (int32_t *)&amp_env[sourceChild].val;
 			else if(eInd == PENV_SRC) modSrc[modType][firstDest + child] = &pit_env[sourceChild].val;
 			else if(eInd == FENV_SRC) modSrc[modType][firstDest + child] = &filt_env[sourceChild].val; 

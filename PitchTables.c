@@ -273,7 +273,7 @@ const char data_screens[SCREEN_CNT][4][21] = {
 		"GLIDE:@@@ @@@@@@@@@@"
 	},
 	{
-		"TYPE:@@@@@          ",
+		"TYPE:@@@@@ TRACK:@@@",
 		"CUTFRQ:@@@@@@@      ",
 		"RES:@@@             ",
 	},

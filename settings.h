@@ -142,6 +142,7 @@ static const uint8_t LCDelems = OBJ6 + 1;
 #define bitRoute 10
 #define bitArpSync 11
 #define bitDrum 12
+#define bitMidiThru 13
 
 //button/knob settings
 #define INPUTS_CNT 16
@@ -169,6 +170,9 @@ static const uint8_t LCDelems = OBJ6 + 1;
 #define bitKeyVel 21
 #define bitHarms 22
 #define bitPhase 23
+#define bitAudMX 24
+#define bitAudL 25
+#define bitAudR 26
 	
 	
 #define EX_WAVE 1
@@ -227,7 +231,7 @@ static const int8_t LAST_GROUP_COL[6][4] = {
 static const int8_t OTHER_GROUP[16][4] = {
 																														{MAINTOG, bitDrum, ARPEGNOTES, EX_DRUM}, 	{E_OSC, -1, -1, EX_ARPNOTREC},
 																														{E_OSC, -1, -1, EX_PATRNDCLR}, 				{E_OSC, -1, -1, EX_TRIG_ON},
-																														{E_OSC, -1, FAVS, EX_FAV2}, 				{MAINTOG, bitHoldAll, -1, EX_HOLD_ALL},
+																														{MAINTOG, bitMidiThru, -1, 0}, 				{MAINTOG, bitHoldAll, -1, EX_HOLD_ALL},
 	{E_OSC, bitWave, WAVETBL, EX_WAVE}, {E_OSC, bitHarms, HARMONIC, EX_HARM},	{E_OSC, bitPoly, PITCH, EX_POLY}, 		{E_OSC, bitNotes, NOTES, 0}, 				{E_OSC, bitHold, -1, EX_HOLD1},
 	{E_OSC, bitMod, MODA, 0}, 			{E_OSC, bitPhase, PHASE, EX_HARM}, 		{E_OSC, bitFTrack, FILTER, EX_FTRACK},	{E_OSC, bitEnvs, MIDIINS, 0}, 				{E_OSC, bitKeyVel, MIDICCS, 0}			
 };
@@ -317,9 +321,13 @@ static const int8_t OTHER_GROUP[16][4] = {
 #define ARP_SRC 8
 
 static const uint32_t TOTAL_MOD_SRC =  ARP_SRC + 1;
-static const uint32_t TOTAL_MODS = (OSC_CNT * TOTAL_MOD_SRC + 2);
+static const uint32_t TOTAL_MODS = (OSC_CNT * TOTAL_MOD_SRC + 5);
 #define MOD_NONE 0
-#define MOD_MAIN_OUT TOTAL_MODS -1
+
+#define MOD_MAIN_OUT 	(TOTAL_MODS - 4)
+#define MOD_AUDIO_MX 	(TOTAL_MODS - 3)
+#define MOD_AUDIO_L 	(TOTAL_MODS - 2)
+#define MOD_AUDIO_R 	(TOTAL_MODS - 1)
 
 #define COPY_ALL 0
 #define COPY_PIT 1

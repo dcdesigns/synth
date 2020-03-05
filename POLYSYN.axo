@@ -7,7 +7,7 @@
 	<inlets/>
 	
 	<outlets>
-		<frac32buffer name="gate" description="key pressed, no retrigger legato"/>
+
 		<frac32buffer name="L" description="Left"/>
 		<frac32buffer name="R" description="Right"/>
 
@@ -30,6 +30,9 @@
 		<include>./serialMidi.h</include>
 		<include>./helperFunctions.c</include>
 	</includes>
+	<depends>
+		<depend>ADAU1361</depend>
+	</depends>
 
 	
 	<code.declaration><![CDATA[
@@ -43,14 +46,14 @@
 		int32_t ctrlCut[OSC_CNT];
 		uint32_t ctrlRes[OSC_CNT];
 		uint32_t kGainSum[OSC_CHILD_CNT];
-		uint32_t kG[OSC_CHILD_CNT];
+		int32_t kG[OSC_CHILD_CNT];
 		uint32_t sGain[OSC_CHILD_CNT];
 		uint32_t sSEEK[OSC_CHILD_CNT];
 		uint32_t kPan[OSC_CNT];
 		//uint32_t kPanSum[OSC_CNT];
 		uint32_t kMain[OSC_CNT];
 		uint32_t kMainOut;
-		
+		uint8_t a_ind = 0;
 		uint8_t tLoops;
 		
 		
@@ -78,6 +81,7 @@
 		uint32_t fEnvOn[OSC_CNT];
 		uint32_t filtOn[OSC_CNT];
 		uint32_t modMask[OSC_CNT];
+		uint32_t isAudio[OSC_CNT];
 		//uint32_t gateMask[OSC_CNT];
 		uint32_t sWaveMask[OSC_CNT];
 		//uint32_t sFiltMask;
@@ -95,7 +99,7 @@
 				checkFileQueue(); 
 				checkHarmQueue(); 
 				checkWriteElem(); 
-				
+
 				for(uint8_t parent = 0; parent < OSC_CNT; parent++)
 				{
 					pEnvOn[parent] = FULLMASK(parent, bitPEnv);
@@ -106,6 +110,11 @@
 					fEnvFrq[parent] = FULLMASK(parent, bitFECut);
 					sWaveMask[parent] = FULLMASK(parent, bitWave);
 					modMask[parent] = FULLMASK(parent, bitMod);
+					
+					if(SHIFTMASK(parent, bitAudMX)) isAudio[parent] = 1;
+					else if(SHIFTMASK(parent, bitAudL)) isAudio[parent] = 2;
+					else if(SHIFTMASK(parent, bitAudR)) isAudio[parent] = 3;
+					else isAudio[parent] = 0;
 					//curWave[parent] = (SHIFTMASK(parent, bitHarms))? &harmArray[parent][0]: &wavArray[parent][0];
 					//gateMask[parent] = modMask[parent] & mod_src[GATE_MOD][parent];
 					
@@ -138,8 +147,14 @@
 	]]></code.declaration>
     
 	<code.init><![CDATA[
-
-		//LogTextMessage("%u", sizeof(ARP_KNOBS));
+		ADAU1961_WriteRegister(0x400E,(44<<2)+3);
+		ADAU1961_WriteRegister(0x400F,(44<<2)+3);
+		ADAU1961_WriteRegister(0x400B,(1<<3)+0);
+		ADAU1961_WriteRegister(0x400D,(1<<3)+0);
+		AudioInputMode = A_STEREO;
+		
+		
+		//LogTextMessage("%d", int32_t(uint32_t(-1) >> 1));
 		initLCD();
 		writeStr(2,3,10,"loading...");
 		initSynthStuff();
@@ -394,7 +409,8 @@
 				uint32_t filtPhaseInc = getPhaseInc(curCut);
 
 				//if(child == 0) outlet_pit = curCut;	 
-				uint32_t curRes = INT_MAX - (__USAT((ctrlRes[parent]>>1) + ((~fEnvFrq[parent] & (filt_env[child].val<<3))>>1) + (modMask[parent] & (*(modSrc[RES_MOD][child]))), 30)<<1);
+				uint32_t curRes = INT_MAX - (__USAT((ctrlRes[parent]>>1) + ((~fEnvFrq[parent] & fEnvOn[parent] & (filt_env[child].val<<3))>>1) + (modMask[parent] & (*(modSrc[RES_MOD][child]))), 30)<<1);
+
 				//uint32_t curRes = INT_MAX - __USAT(ctrlRes[parent] + (~fEnvFrq[parent] & (filt_env[child].val<<3)) + (modMask[parent] & (*(modSrc[RES_MOD][child])<<1)), 31);
 				if(!filtOn[parent]) biquad_lp_coefs(&filt_coeff[child],0x77336AE6,INT_MAX);
 				else if(filt_knobs[parent].TYPE == LOWPASS) biquad_lp_coefs(&filt_coeff[child],filtPhaseInc,curRes);
@@ -489,6 +505,8 @@
 		for(uint8_t child = 0; child < OSC_CHILD_CNT; child++)
 		{
 			kG[child] = ___SMMUL(amp_env[child].val, kGainSum[child])<<1;	
+			/* int32_t dif = kG[child] - sGain[child];
+			if(dif <= 1 && dif >= -1) sGain[child] = kG[child]; */
 		}
 		
 	]]></code.krate>
@@ -505,16 +523,28 @@
 			
 			if(sWaveMask[parent])
 			{
-				for(uint8_t child = first; child < last; child++)
+				if(isAudio[parent])
 				{
-					phase[child] += phaseInc[child] + (modMask[parent] & (*(modSrc[PIT_MOD][child])>>2));
-					int32_t wavInd = (phase[child])>>WAVE_SHIFT;
-					int32_t amp1 = curWave[parent][wavInd];
-					int32_t amp2 = curWave[parent][(wavInd+1) & 0x1FF];
-					uint32_t off = ((phase[child]) & WAVE_MASK) << WAVE_INTERP;
-					lastSignal[child] = ___SMMUL(amp1,INT_MAX-off);
-					lastSignal[child] = ___SMMLA(amp2,off,lastSignal[child])<<1; 
+					uint32_t aInd = isAudio[parent] - 1;
+					for(uint8_t child = first; child < last; child++)
+					{
+						lastSignal[child] = lastAudio[aInd];
+					}
+				}
+				else
+				{
+					
+					for(uint8_t child = first; child < last; child++)
+					{
+						phase[child] += phaseInc[child] + (modMask[parent] & (*(modSrc[PIT_MOD][child])>>2));
+						int32_t wavInd = (phase[child])>>WAVE_SHIFT;
+						int32_t amp1 = curWave[parent][wavInd];
+						int32_t amp2 = curWave[parent][(wavInd+1) & 0x1FF];
+						uint32_t off = ((phase[child]) & WAVE_MASK) << WAVE_INTERP;
+						lastSignal[child] = ___SMMUL(amp1,INT_MAX-off);
+						lastSignal[child] = ___SMMLA(amp2,off,lastSignal[child])<<1; 
 
+					}
 				}
 			}
 			else
@@ -628,15 +658,36 @@
 			outlet_R += sig - L;
 			outlet_L += L;
 		} */
+		lastAudio[1] = AudioInputLeft[a_ind];
+		lastAudio[2] = AudioInputRight[a_ind];
+		lastAudio[0] = (lastAudio[1]) + (lastAudio[2]);
+		++a_ind &= 0xF;
 		
 		outlet_R = ___SMMUL(outlet_R, kMainOut)<<1;
 		outlet_L = ___SMMUL(outlet_L, kMainOut)<<1;
+		
+		
 		//++delay_write;
 
 	]]></code.srate>
 	
     <code.midihandler><![CDATA[
-		addToNotesQueue(status, data1, data2);
+		uint8_t status_type = status & 0xF0;
+		if(status_type != 240)
+		{
+			addToNotesQueue(status, data1, data2);
+			if(SHIFTMASK(MAINTOG, bitMidiThru))
+			{
+				if (status_type == MIDI_PROGRAM_CHANGE || status_type == MIDI_CHANNEL_PRESSURE) 
+				{
+					MidiSend2((midi_device_t) MIDI_DEVICE_DIN, 0, status, data1);
+				}
+				else
+				{
+					MidiSend3((midi_device_t) MIDI_DEVICE_DIN, 0, status, data1, data2);
+				} 				
+			}
+		}
 
 
 ]]></code.midihandler>

@@ -67,6 +67,9 @@ int32_t maxMod;
 int32_t lastSignal[OSC_CHILD_CNT];
 int32_t lastPolyCombo[POLY_CNT];
 int32_t lastMain; //most recent main out sample
+int32_t lastAudio[3]; //most recent audio in samples
+
+
 //int32_t delay_lefts[65536][OSC_CNT] __attribute__ ((section (".sdram")));
 //int32_t delay_rights[OSC_CNT][65536] __attribute__ ((section (".sdram")));
 //uint16_t delay_write;

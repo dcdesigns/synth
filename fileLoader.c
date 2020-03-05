@@ -14,7 +14,7 @@ void initFILES(uint8_t fType)
 {	
 	char tPath[MAXDPATHLEN];
 	char basePath[MAXDPATHLEN];
-	char curDir[6];
+	char curDir[7];
 	char browserLab;
 	browseCnt[fType].files = 0;
 	browseCnt[fType].dirs = 0;
@@ -23,6 +23,24 @@ void initFILES(uint8_t fType)
 	if(fType == WAVE)
 	{
 		strcpy(curDir, WAVE_FOLDER);
+		browseCnt[fType].dirs = 1;
+		strcpy(dirs[fType][0].name, "AUD IN");
+		dirs[fType][0].numFiles = 3;
+		dirs[fType][0].insertAfter = &files[fType][2];
+		
+		const char auds[3][6] = {"MIX", "LEFT", "RIGHT"};
+
+		for(uint32_t i = 0; i < 3; ++i)
+		{
+			filsList *cur = &files[fType][i];
+			++browseCnt[fType].files;
+			strcpy(cur->name, auds[i]);
+			cur->filInd = i + 1;
+			cur->dirInd = 0;
+			if(i > 0) cur->prev = &files[fType][i-1];
+			if(i < 3) cur->next = &files[fType][i+1];
+		}
+		
 		/* for(uint8_t curOsc = 0; curOsc < OSC_CNT; curOsc++) 
 			curWavFile[curOsc] = &files[fType][0]; */
 		
@@ -580,12 +598,21 @@ void __attribute__(( noinline )) checkFileQueue()
 		filsList *curFile;
 		UINT bytesRead;
 		uint8_t fType;
+		uint8_t skip_it = 0;
 
 		if(curFIL < OSC_CNT)
 		{
 			fType = WAVE;
 			curFile = curWavFile[curFIL];
 			HARM_update[curFIL] = -1;
+			CLEARBIT(curFIL, bitAudMX);
+			CLEARBIT(curFIL, bitAudL);
+			CLEARBIT(curFIL, bitAudR);
+			if(curFile->dirInd == 0)
+			{	
+				SETBIT(curFIL, bitAudMX + curFile->filInd);
+				skip_it = 1;
+			}
 		}
 		else
 		{
@@ -594,11 +621,10 @@ void __attribute__(( noinline )) checkFileQueue()
 		}
 		
 		//make sure there's useful data
-		if(browseCnt[fType].files)
+		if(!skip_it && browseCnt[fType].files)
 		{
 			//make a path to the file
 			makeTempPath(dirs[fType][curFile->dirInd].path, curFile->name, path);													
-		
 			//open the file
 			if(f_open(&filBrowser[fType].curFile, path, FA_READ | FA_OPEN_EXISTING) != FR_OK) return;
 		
@@ -622,12 +648,14 @@ void __attribute__(( noinline )) checkFileQueue()
 			}
 			else if(fType == PATCH)
 			{
+				uint32_t midiThru = SHIFTMASK(MAINTOG, bitMidiThru);
 				writeReadPatch(0);
 				/* for(uint8_t i = 0; i < OSC_CNT; i++)
 				{
 					setFileIndexFromName(WAVE, i, curWavFile[i]->name);	
 				} */
 				//memset(&FIL_update[0], 1, OSC_CNT);
+				if(midiThru) SETBIT(MAINTOG, bitMidiThru);
 				initPatch(0, OSC_CNT-1);
 				strcpy(saveName, curPatchFile->name);
 				saveNameInd = strlen(curPatchFile->name)-1;	
