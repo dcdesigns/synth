@@ -94,7 +94,7 @@ void __attribute__(( noinline )) floatToStr(float num, uint8_t leading, uint8_t 
 		rem = -rem;
 	
 	
-	for(uint8_t i = firstDigit; i <= lastDigit; i++)
+	for(uint8_t i = firstDigit; i <= lastDigit; ++i)
 	{
 		/* switch(i)
 		{
@@ -125,7 +125,7 @@ void __attribute__(( noinline )) floatToStr(float num, uint8_t leading, uint8_t 
 	
 	//LogTextMessage("%u %u %u %s %d", digits[0], digits[1], digits[2], str, rem);
 	int32_t had_val = 0;
-	for(uint8_t i = firstDigit; i < lastDigit; i++)
+	for(uint8_t i = firstDigit; i < lastDigit; ++i)
 	{
 		if(!had_val && i < 5 && !digits[i]) temp[0] = ' ';
 		else
@@ -171,7 +171,7 @@ void __attribute__(( noinline ))  SETBIT(uint8_t osc, uint8_t bit)
 
 void  __attribute__(( noinline )) SETBITS(uint8_t osc, uint8_t bits[], uint8_t cnt)
 {
-	for(uint8_t i = 0; i < cnt; i++) SETBIT(osc, bits[i]);
+	for(uint8_t i = 0; i < cnt; ++i) SETBIT(osc, bits[i]);
 }
 
 void __attribute__(( noinline ))  CLEARBIT(uint8_t osc, uint8_t bit)

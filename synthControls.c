@@ -131,7 +131,7 @@ void __attribute__(( noinline )) resetPatch()
 {
 	uint32_t midiThru = SHIFTMASK(MAINTOG, bitMidiThru);
 	
-	for(uint8_t i = 0; i < resetCnt; i++)
+	for(uint8_t i = 0; i < resetCnt; ++i)
 	{
 		uint16_t rem = ptrSizes[i];
 		char *pos = (char *)varPtrs[i];
@@ -148,7 +148,7 @@ void __attribute__(( noinline )) resetPatch()
 	SETBITS(0, resetTogs, sizeof(resetTogs));
 	SETBIT(1, bitPoly);	
 
-	for(uint8_t i = 0; i < OSC_CHILD_CNT; i++)
+	for(uint8_t i = 0; i < OSC_CHILD_CNT; ++i)
 	{
 		amp_env[i].stage = 3;
 		amp_env[i].val = 0;
@@ -157,20 +157,20 @@ void __attribute__(( noinline )) resetPatch()
 	}
 	
 	//turn on notes/vel for poly
-	for(uint8_t i = 0; i < POLY_CHILD_CNT; i++)
+	for(uint8_t i = 0; i < POLY_CHILD_CNT; ++i)
 	{
 		note[i] = A4 << PITCH_COARSE;
 		vel[i] = 127;
 	}
 	
 	//turn on notes/vel for mono
-	for(uint8_t i = 0; i < MONO_CNT; i++)
+	for(uint8_t i = 0; i < MONO_CNT; ++i)
 	{
 		monoPitch[i + POLY_CNT] = A4 << PITCH_COARSE;
 		monoVel[i + POLY_CNT] = 127;
 	}
-
-	for(uint8_t i = 0; i < OSC_CNT; i++)
+	
+	for(uint8_t i = 0; i < OSC_CNT; ++i)
 	{
 		setFileIndexFromName(WAVE, i, "SIN");
 		//curWavFile[i] = &files[WAVE][0];
@@ -289,7 +289,7 @@ void __attribute__(( noinline )) checkHarmQueue()
 			memcpy(base_arr, tArr, sizeof(base_arr));
 			
 			gain = GAIN[curHarm->gainFund];
-			for(uint16_t i = 0; i < WAVE_RES; i++)
+			for(uint16_t i = 0; i < WAVE_RES; ++i)
 			{
 				tArr[i] = ___SMMUL(base_arr[i], gain);//<<1;	
 			}
@@ -312,7 +312,7 @@ void __attribute__(( noinline )) checkHarmQueue()
 				uint16_t j = 0;
 				
 				//add in the current partial
-				for(uint16_t i = 0; i < WAVE_RES; i++)
+				for(uint16_t i = 0; i < WAVE_RES; ++i)
 				{
 					tArr[i] = __SSAT(tArr[i] + (___SMMUL(base_arr[j], gain)), 31);	
 					j = (j + curPart) & WAVE_RES_MASK;
@@ -321,7 +321,7 @@ void __attribute__(( noinline )) checkHarmQueue()
 				curPart += curHarm->step;
 			}
 			
-			for(uint16_t i = 0; i < WAVE_RES; i++)
+			for(uint16_t i = 0; i < WAVE_RES; ++i)
 			{
 				tArr[i] <<= 1;
 			}
@@ -358,7 +358,7 @@ void __attribute__(( noinline )) checkHarmQueue()
 		*curCnt = curHarm->cnt;
 		//if it's been reset, reset the array
 		gain = GAIN[curHarm->gainFund];
-		for(uint16_t i = 0; i < WAVE_RES; i++)
+		for(uint16_t i = 0; i < WAVE_RES; ++i)
 		{
 			tArr[i] = ___SMMUL(wavArray[curO][i], gain);//<<1;	
 		}
@@ -381,7 +381,7 @@ void __attribute__(( noinline )) checkHarmQueue()
 			uint16_t j = 0;
 			
 			//add in the current partial
-			for(uint16_t i = 0; i < WAVE_RES; i++)
+			for(uint16_t i = 0; i < WAVE_RES; ++i)
 			{
 				tArr[i] = __SSAT(tArr[i] + (___SMMUL(wavArray[curO][j], gain)), 31);	
 				j = (j + curPart) & WAVE_RES_MASK;
@@ -390,7 +390,7 @@ void __attribute__(( noinline )) checkHarmQueue()
 			curPart += curHarm->step;
 		}
 		
-		for(uint16_t i = 0; i < WAVE_RES; i++)
+		for(uint16_t i = 0; i < WAVE_RES; ++i)
 		{
 			tArr[i] <<= 1;
 		}
@@ -623,7 +623,7 @@ void __attribute__(( noinline )) copyOsc(uint8_t destOsc, uint8_t srcOsc, uint8_
 	if(bit == bitOsc)
 	{
 		//copy all settings
-		for(uint8_t i = 0; i < settingsCnt; i++)
+		for(uint8_t i = 0; i < settingsCnt; ++i)
 		{
 			uint8_t sz = ptrSingleSizes[i];
 			void *addSrc = varPtrs[i] + sz * srcOsc;
@@ -649,7 +649,7 @@ void __attribute__(( noinline )) copyOsc(uint8_t destOsc, uint8_t srcOsc, uint8_
 			monoPitch[destOsc] = monoPitch[srcOsc];
 			monoVel[destOsc] = monoVel[srcOsc];
 			
-			for(uint8_t i = settingsCnt; i < copyStop; i++)
+			for(uint8_t i = settingsCnt; i < copyStop; ++i)
 			{
 				uint8_t sz = ptrSingleSizes[i];
 				void *addSrc = varPtrs[i] + sz * childFrom;
@@ -758,7 +758,7 @@ uint8_t __attribute__(( noinline ))  finishRecording()
 			if(recVel)
 			{
 				uint8_t adder = 127 - recLoudest;
-				for(uint8_t i = 0; i < recNotes; i++) curArp->V[i] += adder;
+				for(uint8_t i = 0; i < recNotes; ++i) curArp->V[i] += adder;
 			}
 			
 			float avgStep = 0;
@@ -773,7 +773,7 @@ uint8_t __attribute__(( noinline ))  finishRecording()
 				SETBIT(oscInd, bitArpSkip);//curArp->trigAtk |= SKIP_MASK;
 				uint16_t halfBase = recShortest >> 1;
 				uint8_t totalSteps = 0;
-				for(uint8_t i = 0; i < recNotes; i++)
+				for(uint8_t i = 0; i < recNotes; ++i)
 				{
 					uint8_t steps = 1;
 					uint16_t time = recShortest;

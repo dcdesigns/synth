@@ -25,8 +25,8 @@ void initFILES(uint8_t fType)
 		strcpy(curDir, WAVE_FOLDER);
 		browseCnt[fType].dirs = 1;
 		strcpy(dirs[fType][0].name, "AUDIO");
-		dirs[fType][0].numFiles = 3;
-		dirs[fType][0].insertAfter = &files[fType][2];
+		dirs[fType][0].numFiles = 10;
+		dirs[fType][0].insertAfter = &files[fType][9];
 		
 		const char auds[10][7] = {"IN MX", "IN L", "IN R", "POLY 1", "POLY 2", "MONO 1", "MONO 2", "MONO 3", "MONO 4", "MAIN"};
 
@@ -38,7 +38,7 @@ void initFILES(uint8_t fType)
 			cur->filInd = i + 1;
 			cur->dirInd = 0;
 			if(i > 0) cur->prev = &files[fType][i-1];
-			if(i < 8) cur->next = &files[fType][i+1];
+			cur->next = &files[fType][i+1];
 		}
 		
 		/* for(uint8_t curOsc = 0; curOsc < OSC_CNT; curOsc++) 
@@ -228,7 +228,7 @@ void setFileIndexFromName(uint8_t fType, uint8_t osc, char *fName)
 	curFile = &files[fType][0];
 	
 	//find the target file/directory indexes........................................................................................................
-	for(uint8_t i = 0; i < browseCnt[fType].files; i++)
+	for(uint8_t i = 0; i < browseCnt[fType].files; ++i)
 	{			
 		if(strcmp(curFile->name, fName) == 0)
 		{
@@ -557,7 +557,7 @@ uint8_t __attribute__(( noinline )) writeReadPatch(uint8_t isWrite)
 	
 	UINT bytes;
 
-	for(uint8_t i = 0; i < ptrCnt; i++)
+	for(uint8_t i = 0; i < ptrCnt; ++i)
 	{
 		uint16_t rem = ptrSizes[i];
 		char *pos = (char *)varPtrs[i];
@@ -573,7 +573,7 @@ uint8_t __attribute__(( noinline )) writeReadPatch(uint8_t isWrite)
 	}
 	
 	//bigger/weirder osc parent stuff
-	for(uint8_t i = 0; i < OSC_CNT; i++)
+	for(uint8_t i = 0; i < OSC_CNT; ++i)
 	{
 		char wavFil[MAXFNAMELEN];
 		//patchReadWrite(&arpeggio[i], sizeof(arpeggio[i]), isWrite);//) return 1;
@@ -649,7 +649,7 @@ void __attribute__(( noinline )) checkFileQueue()
 			{
 				uint32_t midiThru = SHIFTMASK(MAINTOG, bitMidiThru);
 				writeReadPatch(0);
-				/* for(uint8_t i = 0; i < OSC_CNT; i++)
+				/* for(uint8_t i = 0; i < OSC_CNT; ++i)
 				{
 					setFileIndexFromName(WAVE, i, curWavFile[i]->name);	
 				} */

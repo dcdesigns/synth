@@ -211,7 +211,7 @@ void __attribute__(( noinline ))  updateGraphic()
 		majCycle[1] = cycles;
 		
 		//remaining portions
-		for(uint8_t i = 0; i < 3; i++)
+		for(uint8_t i = 0; i < 3; ++i)
 		{
 			int32_t goal;
 			int32_t rate = SEEK[*(ptr + 1 + i)];
@@ -245,13 +245,13 @@ void __attribute__(( noinline ))  updateGraphic()
 		
 		
 		//get the rounded versions of major points (to make sure everything gets visible)
-		for(uint8_t i = 0; i < 7; i++)
+		for(uint8_t i = 0; i < 7; ++i)
 		{
 			majPos[i] = float(majCycle[i])/perCol;
 		}
 		
 		//get the interpolated graph points
-		for(uint8_t i = 0; i < graphCols+1; i++)
+		for(uint8_t i = 0; i < graphCols+1; ++i)
 		{
 			//if we're on the sus line, don't increment the cycle and hold the same value
 			if(majInd == 4)
@@ -297,7 +297,7 @@ void __attribute__(( noinline ))  updateGraphic()
 		float scl;
 		majCycle[0] = 0;
 		
-		for(uint8_t i = 0; i < FREE_STAGES + 2; i++)
+		for(uint8_t i = 0; i < FREE_STAGES + 2; ++i)
 		{
 			uint16_t limit;
 			if(i < FREE_STAGES)
@@ -345,7 +345,7 @@ void __attribute__(( noinline ))  updateGraphic()
 		majCycle[susMaj] = suslen;
 
 		//get the rounded versions of major points (to make sure everything gets visible)
-		for(uint8_t i = 0; i < majInd + 1; i++)
+		for(uint8_t i = 0; i < majInd + 1; ++i)
 		{
 			majPos[i] = float(majCycle[i])/perCol;
 		}
@@ -353,7 +353,7 @@ void __attribute__(( noinline ))  updateGraphic()
 		majInd = 0;
 		
 		//get the interpolated graph points
-		for(uint8_t i = 0; i < graphCols+1; i++)
+		for(uint8_t i = 0; i < graphCols+1; ++i)
 		{
 			//if we're on the sus line, don't increment the cycle and hold the same value
 			if(majInd == susMaj)
@@ -400,7 +400,7 @@ void __attribute__(( noinline ))  updateGraphic()
 		int32_t rate = SEEK[ptr->G];
 		rate = (rate > (MAX_INT32 >>sh))? MAX_INT32 : rate <<sh;
 		uint8_t isVel = 1;
-		for(uint8_t i = 0; i < 4; i++)
+		for(uint8_t i = 0; i < 4; ++i)
 		{
 			if(arpToggle[i] != VEL_TOG)
 			{
@@ -409,7 +409,7 @@ void __attribute__(( noinline ))  updateGraphic()
 			}
 		}
 		
-		for(uint8_t i = 0; i < ptr->steps; i++)
+		for(uint8_t i = 0; i < ptr->steps; ++i)
 		{
 			//int32_t goal = ptr->P[i]<<PITCH_COARSE; 
 			int32_t goal = (isVel)? ((int32_t)VELGAIN[ptr->V[i]]-(0x7fffffff>>1))>>3 : ptr->P[i]<<PITCH_COARSE; 
@@ -439,7 +439,7 @@ void __attribute__(( noinline ))  updateGraphic()
 		float perCol = (float)cycles/(graphCols);
 
 		//get the rounded versions of major points (to make sure everything gets visible)
-		for(uint8_t i = 0; i < majInd + 1; i++)
+		for(uint8_t i = 0; i < majInd + 1; ++i)
 		{
 			majPos[i] = float(majCycle[i])/perCol;
 		}
@@ -447,7 +447,7 @@ void __attribute__(( noinline ))  updateGraphic()
 		majInd = 0;
 		
 		//get the interpolated graph points
-		for(uint8_t i = 0; i < graphCols+1; i++)
+		for(uint8_t i = 0; i < graphCols+1; ++i)
 		{
 			uint16_t ind = curCycle;
 				
@@ -473,7 +473,7 @@ void __attribute__(( noinline ))  updateGraphic()
 			wavPtr = &harmArray[oscInd][0];
 
 
-			for(uint16_t i = 0; i < graphCols + 1; i++)
+			for(uint16_t i = 0; i < graphCols + 1; ++i)
 			{
 				graphic[i][0] = (*(wavPtr + ( (i<<2) & 0x1ff)) >> 26) + 32; 
 			}
@@ -489,7 +489,7 @@ void __attribute__(( noinline ))  updateGraphic()
 	uint8_t next = graphic[0][0];
 	uint8_t cur;
 
-	for(uint8_t i = 0; i < graphCols; i++)
+	for(uint8_t i = 0; i < graphCols; ++i)
 	{
 		cur = next;
 		next = graphic[i+1][0];
@@ -523,7 +523,7 @@ void __attribute__(( noinline ))  updateGraphic()
 			i2cWritePtr[0] = 0x40;
 			//if(wavPtr != NULL)
 			{
-				for(uint8_t i = 0; i < amt; i++)
+				for(uint8_t i = 0; i < amt; ++i)
 				{
 					int8_t start = upr - graphic[i + ind][1];
 					if(start < 0) start = 0;
@@ -569,7 +569,7 @@ void __attribute__(( noinline ))  updateGraphic()
 	}
 	
 	int32_t max = 0;
-	for(uint16_t i = 0; i < graphCols; i++)
+	for(uint16_t i = 0; i < graphCols; ++i)
 	{
 		wave[i] = ((*(wavPtr + 4 * i)) >> 26) + 32;
 	}
@@ -592,7 +592,7 @@ void __attribute__(( noinline ))  updateGraphic()
 			i2cWritePtr[0] = 0x40;
 			if(wavPtr != NULL)
 			{
-				for(uint8_t i = 0; i < amt; i++)
+				for(uint8_t i = 0; i < amt; ++i)
 				{
 					int8_t dist = upr - wave[i + ind];
 					if(dist > -1 && dist < 8)
@@ -632,7 +632,7 @@ void initLCD()
 	
 	//initialization sequence
 	uint8_t codes[4] = {0x30, 0x30, 0x30, 0x20};
-	for(uint8_t i = 0; i < 4; i++)
+	for(uint8_t i = 0; i < 4; ++i)
 	{
 		send4BitsAndClear(codes[i]);
 		chThdSleepMilliseconds(5);
@@ -671,7 +671,7 @@ void __attribute__(( noinline )) writeStr(uint8_t row, uint8_t col, uint8_t len,
 	//LogTextMessage("writing");
 	//write the string
 	uint8_t skip = 0;
-	for(int i = 0; i < len; i++)
+	for(int i = 0; i < len; ++i)
 	{
 		uint8_t ch;
 		if(i >= strlen(str)) ch = ' ';//sendByte((uint8_t)(' '), Rs);
@@ -731,7 +731,7 @@ void  __attribute__(( noinline )) toggleBlinkCursor(uint8_t on)
 
 void  __attribute__(( noinline )) updateLCDelems(uint8_t first, uint8_t last)
 {
-	for(uint8_t i = first; i <= last; i++)
+	for(uint8_t i = first; i <= last; ++i)
 		LCD_update[i] = 1;
 }
 
@@ -768,7 +768,7 @@ void __attribute__(( noinline )) checkWriteElem()
 		{
 			toggleBlinkCursor(screenInd == ARPEGSETUP || screenInd == PATCHSV);
 			writeStr(0, 12, 8, (char *)SCREENS[screenInd]); 
-			for(uint8_t i = 0; i < 3; i++) writeStr(i+1, 0, 20, (char *)screens[screenInd][i]);
+			for(uint8_t i = 0; i < 3; ++i) writeStr(i+1, 0, 20, (char *)screens[screenInd][i]);
 		} 
 		
 
@@ -1418,7 +1418,7 @@ void __attribute__(( noinline )) intToStr(char *before, int16_t num, uint8_t dig
 	}
 	
 	uint16_t vals[3] = {1000,100,10};
-	for(uint8_t i = 0; i < 3; i++)
+	for(uint8_t i = 0; i < 3; ++i)
 	{
 
 		while(tNum >= vals[i])
@@ -1431,7 +1431,7 @@ void __attribute__(( noinline )) intToStr(char *before, int16_t num, uint8_t dig
 	digits[3] = tNum;
 	int32_t some = 0;
 	//LogTextMessage("%u %u %u %s %d", digits[0], digits[1], digits[2], str, tNum);
-	for(uint8_t i = 0; i < 4; i++)
+	for(uint8_t i = 0; i < 4; ++i)
 	{
 		if(digitsOut >= 4-i)
 		{

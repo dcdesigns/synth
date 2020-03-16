@@ -170,7 +170,7 @@ void  __attribute__(( noinline )) offEvent(uint8_t startOsc, uint8_t endOsc, uin
 			{
 				//LogTextMessage("off start");
 				//find best note slot
-				for(uint8_t i = 1; i < NOTES_CNT; i++)
+				for(uint8_t i = 1; i < NOTES_CNT; ++i)
 				{
 					if(notes[osc][i].priority > notes[osc][monoBest].priority) monoBest = i;
 				}
@@ -305,7 +305,7 @@ void handleNotes()
 					uint8_t lowestInd = 0;
 				
 					//find oldest slot
-					for(uint8_t i = 1; i < NOTES_CNT; i++)
+					for(uint8_t i = 1; i < NOTES_CNT; ++i)
 					{
 						if(notes[osc][i].priority < notes[osc][lowestInd].priority) lowestInd = i;
 					}
@@ -332,7 +332,7 @@ void handleNotes()
 					int8_t bestMatch = -1;
 					
 					//find newest matching note
-					for(uint8_t i = 0; i < NOTES_CNT; i++)
+					for(uint8_t i = 0; i < NOTES_CNT; ++i)
 					{
 						if(notes[osc][i].pitch == curPitch && (bestMatch == -1 || notes[osc][i].priority > notes[osc][bestMatch].priority)) bestMatch = i;
 					}
