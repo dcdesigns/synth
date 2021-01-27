@@ -14,8 +14,10 @@
 void initSynthStuff()
 {	
 
-	
-	//append_data_arrays();
+	#if LOADTABLES
+	save_data_arrays();
+	LogTextMessage("saved\n");
+	#endif
 	read_data_arrays();
 	//get the pointers to the settings variables
 	void *ptrs[] = {
@@ -907,6 +909,8 @@ void __attribute__(( noinline )) updateUINT8val(uint8_t *val, int8_t inc, uint8_
 
 void handleKnobs()
 {
+	#if !LOADTABLES
+	
 	static uint8_t readInd = 0;
 	static int32_t next_loop = 0;
 	static int32_t next_inc = 0;
@@ -1854,6 +1858,8 @@ void handleKnobs()
 	}
 	++readInd &= 0x03;
 	//inputInd = indexIncrement(inputInd, 1, INPUTS);
+	
+	#endif
 }
 	
 

@@ -16,6 +16,8 @@
 #define DRONE_VEL 100
 #define ALL_SLOTS 9
 
+#define LOADTABLES (0)
+
 //number of voices/polyphony
 #define NOTES_CNT 8
 #define POLY_CNT 2

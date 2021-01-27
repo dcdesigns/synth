@@ -360,23 +360,24 @@ uint8_t savePatch()
 	return 1;
 }
 
+#if LOADTABLES
 
-/* uint32_t save_data_arrays()
+uint32_t save_data_arrays()
 {
 	LogTextMessage("s");
 	char path[50];
 	char file[] = "DATA_DO_NOT_DELETE";
 	FIL *data_file;
 	UINT bytesRead;
-	
+
 	const void *ps[] = {data_phase_width_incs, data_PHASEINCS, data_ATTACK_K, data_SEEK, data_SEEK_S_RATE, data_GAIN, data_VELGAIN, data_TIME, data_screens, data_SCREENS, data_noteLabels};
-	uint16_t sz[] = {256 * 2 * 4, 257 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 2, 18 * 4 * 21, 18 * 9, 169 * 5}; 
+	uint16_t sz[] = {256 * 2 * 4, 257 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 2, SCREEN_CNT * 4 * 21, SCREEN_CNT * 9, 169 * 5}; 
 	makeTempPath((char*)ROOT_FOLDER, file, path);
 	
 	//create the file
 	if(f_open(data_file, path, FA_CREATE_ALWAYS | FA_READ | FA_WRITE) != FR_OK) return 0;
 	
-	for(int32_t i = 0; i < 8; ++i)
+	for(int32_t i = 0; i < 11; ++i)
 	{
 		void *p = (void *)ps[i];
 		uint16_t left = sz[i];
@@ -400,7 +401,9 @@ uint8_t savePatch()
 	//const char noteLabels[169][5];
 	//const char screens[18][4][21];
  
-} */
+}
+
+#endif
 
 /* uint32_t append_data_arrays()
 {

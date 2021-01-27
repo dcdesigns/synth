@@ -737,6 +737,16 @@ void  __attribute__(( noinline )) updateLCDelems(uint8_t first, uint8_t last)
 
 void __attribute__(( noinline )) checkWriteElem()
 {
+	#if LOADTABLES
+	static int32_t first = 1;
+	if(first)
+	{
+		writeStr(0, 0, 20, "DATA LOADED");
+		first = 0;
+	}
+
+	#else
+		
 	char tempStr[21];
 	strcpy(tempStr, "");
 	static uint8_t curLCD = 0;
@@ -1284,6 +1294,8 @@ void __attribute__(( noinline )) checkWriteElem()
 	}	
 	curLCD = indexIncrement(curLCD, 1, LCDelems);
 	if(!curLCD && GRAPH_update) updateGraphic();
+	
+	#endif
 
 }
 
