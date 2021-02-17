@@ -20,6 +20,7 @@ PIT_KNOBS pit_knobs[OSC_CNT];
 AMP_ENV_KNOBS amp_env_knobs[OSC_CNT];
 PIT_ENV_KNOBS pit_env_knobs[OSC_CNT];
 PIT_ENV_KNOBS filt_env_knobs[OSC_CNT];
+PIT_RATIO_KNOBS pit_ratio[OSC_CNT];
 FILT_KNOBS filt_knobs[OSC_CNT];
 ARP_KNOBS arpeggio[OSC_CNT] __attribute__ ((section (".sdram")));
 MIDI_PARAMS midi_knobs[OSC_CNT];
@@ -55,8 +56,7 @@ int32_t kNote[OSC_CHILD_CNT];
 
 
 //arrays for matching children and parents
-const uint8_t parents[OSC_CHILD_CNT] = {0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,2,3,4,5};
-const uint8_t firstChild[OSC_CNT] = {0,8,16,17,18,19};
+
 
 
 //mod sources
@@ -88,7 +88,7 @@ uint8_t KNOB_A[8];
 uint32_t KNOB_TICKS[8];
 int8_t KNOB_DIR[8];
 uint16_t KNOB_S;
-uint16_t MX[4];
+static uint16_t MX[5];
 uint16_t LED[4];
 
 //int8_t knob_incs[3 * ENCODERS];	//buffer for knob/button events
@@ -96,6 +96,7 @@ uint8_t LCD_update[LCDelems + 1];	//buffer for lcd updates
 uint8_t GRAPH_update;
 uint8_t FIL_update[OSC_CNT + 1];
 int8_t HARM_update[OSC_CNT];
+uint32_t pit_ratio_update;
 //uint8_t curKnob; //which knob event to check
 //uint8_t curNote; //which note event to check
 //uint8_t curCC; //which cc event to check

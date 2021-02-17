@@ -11,148 +11,7 @@ static uint8_t *readByte;
 const uint8_t graphCols = 128;
 int8_t vals[12000] = {0};
 
-//static const uint8_t rowAddrs[] = {0x00, 0x40, 0x14, 0x54};
-/* const uint8_t rcl[18][6][3] = {
-	//wav
-	{
-		{1,0,9},{1,10,9},
-		{2,0,9},{2,10,9},
-		{3,0,9},{3,10,9}
-	},
-	//amp
-	{
-		{1,9,3},{1,16,3},
-		{2,9,3},{2,16,3},
-		{2,9,3},{2,16,3},
-	},
-	//pitch
-	{
-		{1,7,3},{0,0,0},
-		{2,11,7},{0,0,0},
-		{3,9,3}, {3,16,3}
-	},
-	//pit env
-	{
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0},
-		{3,6,3}, {0,0,0}
-	},
-	//filt
-	{
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0},
-		{3,4,3}, {0,0,0}
-	},
-	//filt env
-	{
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0}
-	},
-	//arp
-	{
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0}
-	},
-	//arpnotes
-	{
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0}
-	},
-	//patchload
-	{
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0}
-	},
-	//patch save
-	{
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0}
-	},
-	//midi
-	{
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0}
-	},
-	//midicc
-	{
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0}
-	},
-	//pan
-	{
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0}
-	},
-	//mod
-	{
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0}
-	},
-	//notes
-	{
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0}
-	},
-	//arprec
-	{
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0}
-	},
-	//fav
-	{
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0},
-		{0,0,0},{0,0,0}
-	},
-	//harmonics
-	{
-		{1,6,0},{0,0,0},
-		{2,5,1},{2,17,2}, 
-		{3,6,3},{3,17,4}
-	}
-		
-}; */
 
-
- 
-
-//const char waveStr[2][6] = {"NOISE", "FILE"};
-const char saveCopyStr[2][7] = {"SAVED.", "DONE."};
-const char oscStr[6][5] = {"POL1", "POL2", "MON1", "MON2", "MON3", "MON4"}; 
-const char lvlStr[3][4] = {"LVL", "MST"};
-const char arpNoteLeader[3][4] = {" P", " E:", " V:"};
-const char yesNoStr[2][4] = {"NO", "YES"};
-const char onOffStr[2][4] = {"OFF", "ON"};
-const char startStopStr[2][7] = {"*START", "*STOP:"};
-const char copyWhat[2][4] = {"ALL", "ARP"};
-const char envStr[5][6] = {"PITCH", "F.CUT", "RES"};
-const char filtStr[3][4] = {"LPF", "BPF", "HPF"};
-const char stageStr[5][4] = {"1ST", "2ND", "3RD", "SUS", "REL"};
-const char notesStr[2][4] = {"PIT", "VEL"};
-const char trackStr[2][4] = {"YES", "ENV"};
-const char velStr[3][7] = {"NONE","KEYVEL","WINDCC"};
-const char loopStr[4][6] = {"TRIG-", "LOOP-", "SKIP", "ALL"};
-const char modStrA[5][5] = {"----", "MAIN", "AUDM", "AUDL", "AUDR"};
-const char modStrB[9][4] = {"WND", "MDW", "PBD", "SUS", "OUT", "AMP", "PIT", "FLT", "ARP"};
-const char modStrO[6][3] = {"P1", "P2", "M1", "M2", "M3", "M4"}; 
-
-const char recStr[5] = "*REC";
-const char timeStr[6] = "TIME:";
-const char typeStr[6] = "TYPE:";
-const char favStr[2][21] = {"MAKE SURE THIS PATCH", "  HAS BEEN SAVED!   "};
-const char nts[12][4] = {"C  ", "C #", "D  ", "D #","E  ","F  ","F #", "G  ","G #", "A  ","A #", "B  "};
-const char units[3][3] = {"s", "Hz", "kH"};
 
 
 //global variables
@@ -737,15 +596,7 @@ void  __attribute__(( noinline )) updateLCDelems(uint8_t first, uint8_t last)
 
 void __attribute__(( noinline )) checkWriteElem()
 {
-	#if LOADTABLES
-	static int32_t first = 1;
-	if(first)
-	{
-		writeStr(0, 0, 20, "DATA LOADED");
-		first = 0;
-	}
-
-	#else
+	#if !LOADTABLES
 		
 	char tempStr[21];
 	strcpy(tempStr, "");
@@ -876,6 +727,35 @@ void __attribute__(( noinline )) checkWriteElem()
 						case OBJ6: writeBasicInt((int16_t)curPits->vel_glide,3, 0, 3, 16); break;
 						
 						
+					}
+				}
+				break;
+				
+				case PITRATIO:
+				{
+					// "01234567890123456789"
+					// "(SELF)      @@@@    ",
+					// " @@@   TO   @@@     ",
+					// "FINE:@@@    *PITMOD "
+		
+		
+					PIT_RATIO_KNOBS *cur = &pit_ratio[oscInd];				
+					switch(curLCD)
+					{
+						//case OBJ1: writeStr(1, 9, 4, (char *)oscStr[oscInd]); break;
+						//case OBJ2: writeStr(1, 12, 4, (char *)oscStr[oscInd]); break;	
+						case OBJ2: 
+						{
+							if(ensure_not_self_ratio(1))
+							{
+								pit_ratio_update |= (1 << oscInd);	
+							}
+							LCD_update[OBJ2] = 0;
+							writeStr(1, 12, 4, (char *)oscStr[cur->src]); break;	
+						}						
+						case OBJ3: writeBasicInt((int16_t)cur->dst_val + 1,3, 0, 2, 1); break;	
+						case OBJ4: writeBasicInt((int16_t)cur->src_val + 1,3, 0, 2, 12); break;
+						case OBJ5: writeBasicInt((int16_t)cur->offset, 2, 1, 3, 5); break;
 					}
 				}
 				break;

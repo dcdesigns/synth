@@ -360,6 +360,9 @@ uint8_t savePatch()
 	return 1;
 }
 
+
+
+
 #if LOADTABLES
 
 uint32_t save_data_arrays()
@@ -367,20 +370,22 @@ uint32_t save_data_arrays()
 	LogTextMessage("s");
 	char path[50];
 	char file[] = "DATA_DO_NOT_DELETE";
-	FIL *data_file;
+	FIL *DATA_file;
 	UINT bytesRead;
 
-	const void *ps[] = {data_phase_width_incs, data_PHASEINCS, data_ATTACK_K, data_SEEK, data_SEEK_S_RATE, data_GAIN, data_VELGAIN, data_TIME, data_screens, data_SCREENS, data_noteLabels};
-	uint16_t sz[] = {256 * 2 * 4, 257 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 2, SCREEN_CNT * 4 * 21, SCREEN_CNT * 9, 169 * 5}; 
+	const void *DATA_SRC[] = {DATA_phase_width_incs, DATA_PHASEINCS, DATA_ATTACK_K, DATA_SEEK, DATA_SEEK_S_RATE, DATA_GAIN, DATA_VELGAIN, DATA_TIME, DATA_screens, DATA_SCREENS, DATA_noteLabels, BIG_GROUP, OTHER_GROUPS, DATA_parents, DATA_firstChild, 
+		DATA_chan_pins, DATA_mx_pins, DATA_led_pins, DATA_lower_knob_pins, DATA_upper_knob_pins, 
+		DATA_saveCopyStr, DATA_oscStr, DATA_lvlStr, DATA_arpNoteLeader, DATA_yesNoStr, DATA_onOffStr, DATA_startStopStr, DATA_copyWhat, DATA_envStr, DATA_filtStr, DATA_stageStr, DATA_notesStr, DATA_trackStr, DATA_velStr, DATA_loopStr, DATA_modStrA, DATA_modStrB, DATA_modStrO, DATA_recStr, DATA_timeStr, DATA_typeStr, DATA_favStr, DATA_nts, DATA_units};
+	
 	makeTempPath((char*)ROOT_FOLDER, file, path);
 	
 	//create the file
-	if(f_open(data_file, path, FA_CREATE_ALWAYS | FA_READ | FA_WRITE) != FR_OK) return 0;
+	if(f_open(DATA_file, path, FA_CREATE_ALWAYS | FA_READ | FA_WRITE) != FR_OK) return 0;
 	
-	for(int32_t i = 0; i < 11; ++i)
+	for(int32_t i = 0; i < DATA_CNT; ++i)
 	{
-		void *p = (void *)ps[i];
-		uint16_t left = sz[i];
+		void *p = (void *)DATA_SRC[i];
+		uint16_t left = DATA_SZ[i];
 		uint16_t write;
 		
 		while(left)
@@ -388,14 +393,14 @@ uint32_t save_data_arrays()
 			write = left;
 			if(write > 256) write = 256;
 			
-			if(f_write(data_file, p, write, &bytesRead) != FR_OK) return 0;
+			if(f_write(DATA_file, p, write, &bytesRead) != FR_OK) return 0;
 			p += write;
 			left -= write;
 		}
 	}
 	
-	f_close(data_file);
-	LogTextMessage("e");
+	f_close(DATA_file);
+	LogTextMessage("sv");
 	return 1;
 	 
 	//const char noteLabels[169][5];
@@ -405,67 +410,29 @@ uint32_t save_data_arrays()
 
 #endif
 
-/* uint32_t append_data_arrays()
-{
-	LogTextMessage("sa");
-	char path[50];
-	char file[] = "DATA_DO_NOT_DELETE";
-	FIL *data_file;
-	UINT bytesRead;
-	
-	const void *ps[] = {data_screens, data_SCREENS, data_noteLabels};
-	uint16_t sz[] = {SCREEN_CNT * 4 * 21, SCREEN_CNT * 9, 169 * 5}; 
-	makeTempPath((char*)ROOT_FOLDER, file, path);
-	
-	//create the file
-	if(f_open(data_file, path, FA_OPEN_EXISTING | FA_WRITE) != FR_OK) return 0;
-	if(f_lseek(data_file, 5892) != FR_OK) return 0;
-	
-	for(int32_t i = 0; i < 3; ++i)
-	{
-		void *p = (void *)ps[i];
-		uint16_t left = sz[i];
-		uint16_t write;
-		
-		while(left)
-		{
-			write = left;
-			if(write > 256) write = 256;
-			
-			if(f_write(data_file, p, write, &bytesRead) != FR_OK) return 0;
-			p += write;
-			left -= write;
-		}
-	}
-	
-	f_close(data_file);
-	LogTextMessage("ea");
-	return 1;
-	 
-	//const char noteLabels[169][5];
-	//const char screens[18][4][21];
- 
-} */
 
 uint32_t read_data_arrays()
 {
 	//LogTextMessage("s");
 	char path[50];
 	char file[] = "DATA_DO_NOT_DELETE";
-	FIL *data_file;
+	FIL *DATA_file;
 	UINT bytesRead;
 	
-	const void *ps[] = {phase_width_incs, PHASEINCS, ATTACK_K, SEEK, SEEK_S_RATE, GAIN, VELGAIN, TIME, screens, SCREENS, noteLabels};
-	uint16_t sz[] = {256 * 2 * 4, 257 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 2, SCREEN_CNT * 4 * 21, SCREEN_CNT * 9, 169 * 5}; 
+	const void *DATA_DST[] = {phase_width_incs, PHASEINCS, ATTACK_K, SEEK, SEEK_S_RATE, GAIN, VELGAIN, TIME, screens, SCREENS, noteLabels, big_group, other_groups, parents, firstChild, 
+		chan_pins, mx_pins, led_pins, lower_knob_pins, upper_knob_pins, 
+		saveCopyStr, oscStr, lvlStr, arpNoteLeader, yesNoStr, onOffStr, startStopStr, copyWhat, envStr, filtStr, stageStr, notesStr, trackStr, velStr, loopStr, modStrA, modStrB, modStrO, recStr, timeStr, typeStr, favStr, nts, units};
+	
+	
 	makeTempPath((char*)ROOT_FOLDER, file, path);
 	
 	//create the file
-	if(f_open(data_file, path, FA_READ) != FR_OK) return 0;
+	if(f_open(DATA_file, path, FA_READ) != FR_OK) return 0;
 	
-	for(int32_t i = 0; i < 11; ++i)
+	for(int32_t i = 0; i < DATA_CNT; ++i)
 	{
-		void *p = (void *)ps[i];
-		uint16_t left = sz[i];
+		void *p = (void *)DATA_DST[i];
+		uint16_t left = DATA_SZ[i];
 		uint16_t read;
 		
 		while(left)
@@ -473,13 +440,16 @@ uint32_t read_data_arrays()
 			read = left;
 			if(read > 256) read = 256;
 			
-			if(f_read(data_file, p, read, &bytesRead) != FR_OK) return 0;
+			if(f_read(DATA_file, p, read, &bytesRead) != FR_OK) return 0;
 			p += read;
 			left -= read;
 		}
+		
 	}
 	
-	f_close(data_file);
+	f_close(DATA_file);
+	
+	
 	//LogTextMessage("e");
 	return 1;
 	 

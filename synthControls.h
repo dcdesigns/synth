@@ -8,7 +8,7 @@ void __attribute__(( noinline )) initPatch(uint8_t first, uint8_t last);
 void initSynthStuff();
 void __attribute__(( noinline )) checkHarmQueue();
 void __attribute__(( noinline )) scanInputs();
-void  __attribute__(( noinline )) checkSwitch(uint16_t *state, uint8_t ind, uint8_t sig, uint8_t group);
+void __attribute__(( noinline )) checkSwitch(uint8_t group, uint8_t ind, uint8_t sig);
 void  __attribute__(( noinline )) addToInputQueue(uint8_t group, uint8_t ind, int32_t val, uint8_t isQuick);
 uint8_t  __attribute__(( noinline )) oscFromGrpInd(uint8_t group, uint8_t ind);
 void  __attribute__(( noinline )) updateLEDs();
@@ -33,6 +33,8 @@ uint8_t __attribute__(( noinline )) knobPos(uint8_t zeroKnob, uint8_t knobID);
 uint8_t __attribute__(( noinline )) bounded(uint8_t val, int8_t inc, uint8_t min, uint8_t max);
 void __attribute__(( noinline )) spreadNotes(uint8_t osc, uint8_t zeroNote);
 int32_t __attribute__(( noinline )) randVal(int32_t max, uint8_t isPos);
+void __attribute__(( noinline )) updatePitRatio();
+int32_t __attribute__(( noinline )) ensure_not_self_ratio(int32_t inc);
 
 #include "./synthControls.c"
 

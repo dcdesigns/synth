@@ -9,14 +9,68 @@
 #include "./lcdLib.h"
 #include "./midiHandler.h"
 
+
+
+void __attribute__(( noinline )) get_port(const char* port_code, ioportid_t *port, uint32_t *pin)
+{
+	switch(port_code[0])
+	{
+		case 'A':
+		case 'a':
+			*port = GPIOA;
+			break;
+		case 'B':
+		case 'b':
+			*port = GPIOB;
+			break;
+		case 'C':
+		case 'c':
+			*port = GPIOC;
+			break;
+			
+	}
 	
+	*pin = uint32_t(port_code[1] - '0');
+}
+
+void __attribute__(( noinline )) setup_pin(const char *port_code, uint32_t is_input)
+{
+	ioportid_t port;
+	uint32_t pin;
+	get_port(port_code, &port, &pin);
+	
+	if(is_input)
+	{
+		palSetPadMode(port, pin, PAL_MODE_INPUT);
+	}
+	else
+	{
+		palSetPadMode(port, pin, PAL_MODE_OUTPUT_PUSHPULL);
+		palWritePad(port, pin, 0);
+	}
+}
+
+uint32_t __attribute__(( noinline )) read_pin(const char *port_code)
+{
+	ioportid_t port;
+	uint32_t pin;
+	get_port(port_code, &port, &pin);
+	return palReadPad(port, pin);
+}
+
+void __attribute__(( noinline )) write_pin(const char *port_code, uint32_t val)
+{
+	ioportid_t port;
+	uint32_t pin;
+	get_port(port_code, &port, &pin);
+	palWritePad(port, pin, val);
+}
 //runs once at startup
 void initSynthStuff()
 {	
 
 	#if LOADTABLES
 	save_data_arrays();
-	LogTextMessage("saved\n");
 	#endif
 	read_data_arrays();
 	//get the pointers to the settings variables
@@ -32,24 +86,20 @@ void initSynthStuff()
 
 	memcpy(varPtrs, ptrs, sizeof(ptrs));
 	
-	
-	//set up channel selector output pins
-	palSetGroupMode(GPIOA, 0x0F, 4, PAL_MODE_OUTPUT_PUSHPULL);
-	palWriteGroup(GPIOA, 0x0F, 4, 0);
-	
-	//set up LED output pins
-	palSetGroupMode(GPIOC, 0x03, 4, PAL_MODE_OUTPUT_PUSHPULL);
-	palSetGroupMode(GPIOA, 0x03, 0, PAL_MODE_OUTPUT_PUSHPULL);
-	palWriteGroup(GPIOC, 0x03, 4, 0);
-	palWriteGroup(GPIOA, 0x03, 0, 0);
-	
-	//set up MX input pins
-	palSetGroupMode(GPIOC, 0x0F, 0, PAL_MODE_INPUT);
-	
-	//set up knob input pins
-	palSetGroupMode(GPIOB, 0x03, 0, PAL_MODE_INPUT);
-	palSetPadMode(GPIOA, 2, PAL_MODE_INPUT);
-	
+	for(int32_t i = 0; i < 5; ++i)
+	{
+		if(i < 2)
+		{
+			setup_pin(lower_knob_pins[i], 1);
+			setup_pin(upper_knob_pins[i], 1);
+		}
+		if(i < 4)
+		{
+			setup_pin(chan_pins[i], 0);
+			setup_pin(led_pins[i], 0);
+		}
+		setup_pin(mx_pins[i], 1);
+	}
 	
 	//clear the note and cc events arrays
 	memset(&midiEvents, DEAD_MIDI_EVENT, sizeof(midiEvents));
@@ -80,7 +130,7 @@ void initSynthStuff()
 	
 	
 	//give presets to editing variables
-	strcpy(saveName, "      ");
+	strcpy(saveName, saveCopyStr[2]);
 	pitchShift = PITCH_COARSE;
 	lastLetter = 'A';
 	saveNameInd = 0;
@@ -174,12 +224,12 @@ void __attribute__(( noinline )) resetPatch()
 	
 	for(uint8_t i = 0; i < OSC_CNT; ++i)
 	{
-		setFileIndexFromName(WAVE, i, "SIN");
+		setFileIndexFromName(WAVE, i, (char *)def_wave);
 		//curWavFile[i] = &files[WAVE][0];
 		pit_knobs[i].vel_glide = 11;
 		pit_knobs[i].pitch = MIDI_KEY_0<<PITCH_COARSE;
 		SETBIT(i, bitArpTrig);
-		SETBIT(i, bitFTrack);
+		//SETBIT(i, bitFTrack);
 		SETBIT(i, bitFECut);
 
 		arpeggio[i].steps = 1;
@@ -203,6 +253,8 @@ void __attribute__(( noinline )) resetPatch()
 		phase_knobs[i].before_harm = 0;
 		phase_knobs[i].after_phase = 127;
 		phase_knobs[i].after_harm = 1;
+		
+		filt_knobs[i].FRQ = (A4 + MIDI_KEY_0)<<PITCH_COARSE;
 
 		
 	}
@@ -406,72 +458,249 @@ void __attribute__(( noinline )) checkHarmQueue()
 	}
 }
  */
+ 
+ // void check_knob_turns(uint8_t knobInd, const char pin_group[2][3])
+ // { 
+	// uint8_t tIn = read_pin(pin_group[0]);
+	// tIn |= (read_pin(pin_group[1]) << 1);
+	
+	// //check for knob turns
+	// if((tIn) != (KNOB_A[knobInd]))
+	// {
+		// uint8_t chg = tIn ^ KNOB_A[knobInd];
+		// uint8_t isDone = 0;
+		// uint32_t elapsed = ticks - KNOB_TICKS[knobInd];
+		
+		// //starting a new turn, reset direction
+		// if(elapsed > 400) KNOB_DIR[knobInd] = 0;
+		
+		// //both signals changed--garbage data-- add it as an acceleration of the current direction
+		// if(chg == 3) 
+		// {
+			// if(KNOB_DIR[knobInd]) isDone = 2;
+		// }
+		// else
+		// {
+			// //compare signal A to signal B to get direction
+			// int8_t dir = ((tIn & 1) == (tIn >> 1))? 1 : -1;
+			
+			// //if A changed, flip the result 
+			// if(chg & 1)
+			// {
+				// dir = -dir;
+				
+				// //if A returned to high, it landed back in a detent
+				// if(tIn & 1) isDone = 1;
+			// }
+			
+			// //direction change is either an acceleration (if elapsed is small) or direction change
+			// if(dir != KNOB_DIR[knobInd] && elapsed < 48) isDone = 3;
+			// else KNOB_DIR[knobInd] = dir;
+		// }
+		
+		// //apply knob turns
+		// if(isDone && KNOB_DIR[knobInd])
+		// {
+			// LogTextMessage("knob %u, val %d\n", knobInd, KNOB_DIR[knobInd]<<(isDone-1));
+			// //addToInputQueue(KNOB_GRP, knobInd, KNOB_DIR[knobInd]<<(isDone-1), 0);
+		// }
+
+		// KNOB_A[knobInd] = tIn;
+		// KNOB_TICKS[knobInd] = ticks;
+	// }
+ // }
+ 
+  // void check_knob_turns(uint32_t knobInd, const char pin_group[2][3])
+ // { 
+	// static uint8_t A_seq[8] = {0};
+	// static uint8_t B_seq[8] = {0};
+	// static uint8_t events[8] = {0};
+	// static uint32_t initialized = 0;
+	// static int32_t last_dir[8] = {0};
+	// static uint8_t knob_val[8] = {0};
+	// uint32_t tA = read_pin(pin_group[0]);
+	// uint32_t tB = read_pin(pin_group[1]);
+	
+	
+	
+	// if(!((initialized >> knobInd) & 1))
+	// {
+		// initialized |= (1 << knobInd);
+		// A_seq[knobInd] = tA;
+		// B_seq[knobInd] = tB;
+		// KNOB_TICKS[knobInd] = ticks;
+	// }
+	
+	// uint32_t A_chg = tA != (A_seq[knobInd] & 1);
+	// uint32_t B_chg = tB != (B_seq[knobInd] & 1);
+	
+	// //check for knob turns
+	// if(A_chg || B_chg)
+	// {	
+		// A_seq[knobInd] <<= 1;
+		// A_seq[knobInd] |= tA;
+		// B_seq[knobInd] <<= 1;
+		// B_seq[knobInd] |= tB;
+		
+		// if(A_chg && tA)
+		// {
+			// uint32_t b_val = B_seq[knobInd] & 0xF;
+			// uint32_t elapsed = ticks - KNOB_TICKS[knobInd];
+			// int32_t dir = elapsed < 40? last_dir[knobInd] : (b_val == 0x03) ? -1 : (b_val == 0x0C) ? 1 : (elapsed < 100) ? last_dir[knobInd] : 0; 
+			// int32_t mult = elapsed < 20? 4: elapsed < 40? 3 : (b_val == 0x03 || b_val == 0x0C) ? 1 : 2; 
+			// addToInputQueue(KNOB_GRP, knobInd, dir * mult, 0);
+			// KNOB_TICKS[knobInd] = ticks;
+			// last_dir[knobInd] = dir;
+		// }
+
+	// }
+ // }
+ 
+   void check_knob_turns(uint32_t knobInd, uint8_t sig)
+ { 
+	static uint8_t A_seq[8] = {0};
+	static uint8_t B_seq[8] = {0};
+	static uint8_t events[8] = {0};
+	static uint32_t initialized = 0;
+	static int32_t last_dir[8] = {0};
+	static uint8_t knob_val[8] = {0};
+	uint32_t tA = sig & 1;
+	uint32_t tB = (sig >> 1) & 1;
+	
+	
+	
+	if(!((initialized >> knobInd) & 1))
+	{
+		initialized |= (1 << knobInd);
+		A_seq[knobInd] = tA;
+		B_seq[knobInd] = tB;
+		KNOB_TICKS[knobInd] = ticks;
+	}
+	
+	uint32_t A_chg = tA != (A_seq[knobInd] & 1);
+	uint32_t B_chg = tB != (B_seq[knobInd] & 1);
+	
+	//check for knob turns
+	if(A_chg || B_chg)
+	{	
+		A_seq[knobInd] <<= 1;
+		A_seq[knobInd] |= tA;
+		B_seq[knobInd] <<= 1;
+		B_seq[knobInd] |= tB;
+		
+		if(A_chg && tA)
+		{
+			uint32_t b_val = B_seq[knobInd] & 0xF;
+			uint32_t elapsed = ticks - KNOB_TICKS[knobInd];
+			int32_t dir = elapsed < 40? last_dir[knobInd] : (b_val == 0x03) ? -1 : (b_val == 0x0C) ? 1 : (elapsed < 100) ? last_dir[knobInd] : 0; 
+			int32_t mult = elapsed < 20? 4: elapsed < 40? 3 : (b_val == 0x03 || b_val == 0x0C) ? 1 : 2; 
+			addToInputQueue(KNOB_GRP, knobInd, dir * mult, 0);
+			KNOB_TICKS[knobInd] = ticks;
+			last_dir[knobInd] = dir;
+		}
+
+	}
+ }
+ 
+/*  void __attribute__(( noinline )) check_knob(const char pins[2][3], uint8_t *states, int32_t ind, int32_t grp)
+ {
+	uint32_t a_sig = read_pin(pins[0]);
+	uint32_t b_sig = read_pin(pins[1]);
+	int32_t b_ind = ind + 4;
+	
+	if(b_sig != ((*states >> b_ind) & 1))
+	{
+		*states ^= (1 << b_ind);
+	}
+	
+	if(a_sig != ((*states >> ind) & 1))
+	{
+		*states ^= (1 << ind);
+		
+		if(a_sig)
+		{
+			if(b_sig)
+			{
+				LogTextMessage("knob %u left\n", ind + (grp << 2));
+			}
+			else
+			{
+				LogTextMessage("knob %u right\n", ind + (grp << 2));
+			}
+		}
+	}
+	
+ } */
 void __attribute__(( noinline )) scanInputs()
 {
 	
 	
 	static uint8_t ind = 0;
 	static uint8_t grp = 0;
+	static uint8_t l_ind = 0;
+	static uint16_t mxs[5] = {0};
+	static uint8_t k_lower = 0;
+	static uint8_t k_upper = 0;
+	static uint8_t tM[16];
 	
-	uint8_t knobInd = ind & 0x07;
-	
-	
-	//fix order of knobs 6/7 because i fucked up the board schematic
-	if(knobInd == 6) knobInd = 7;
-	else if(knobInd == 7) knobInd = 6;
-
-	//check for knob turns
-	uint8_t tIn = palReadGroup(GPIOB, 0x03, 0);
-	if((tIn) != (KNOB_A[knobInd]))
+	if(!grp)
 	{
-		uint8_t chg = tIn ^ KNOB_A[knobInd];
-		uint8_t isDone = 0;
-		uint32_t elapsed = ticks - KNOB_TICKS[knobInd];
-		
-		//starting a new turn, reset direction
-		if(elapsed > 400) KNOB_DIR[knobInd] = 0;
-		
-		//both signals changed--garbage data-- add it as an acceleration of the current direction
-		if(chg == 3) 
-		{
-			if(KNOB_DIR[knobInd]) isDone = 2;
-		}
-		else
-		{
-			//compare signal A to signal B to get direction
-			int8_t dir = ((tIn & 1) == (tIn >> 1))? 1 : -1;
-			
-			//if A changed, flip the result 
-			if(chg & 1)
-			{
-				dir = -dir;
-				
-				//if A returned to high, it landed back in a detent
-				if(tIn & 1) isDone = 1;
-			}
-			
-			//direction change is either an acceleration (if elapsed is small) or direction change
-			if(dir != KNOB_DIR[knobInd] && elapsed < 48) isDone = 3;
-			else KNOB_DIR[knobInd] = dir;
-		}
-		
-		//apply knob turns
-		if(isDone && KNOB_DIR[knobInd]) addToInputQueue(KNOB_GRP, knobInd, KNOB_DIR[knobInd]<<(isDone-1), 0);
-
-		KNOB_A[knobInd] = tIn;
-		KNOB_TICKS[knobInd] = ticks;
+		tM[ind] = palReadGroup(GPIOC, 0x1F, 0);
 	}
 
-	//check for knob click
-	if(!grp && (ind & 8)) checkSwitch(&KNOB_S, knobInd + 8, palReadPad(GPIOA, 2), KNOB_GRP);
+	uint8_t tk = palReadGroup(GPIOB, 0xC3, 0);
+	check_knob_turns(ind & 0x03, (tk >> 6) & 3);
+	check_knob_turns((ind & 0x03) + 4, tk & 3);
+
+	checkSwitch(grp, ind, (tM[ind] >> grp) & 1);
+	
+	
+	// check_knob_turns(ind & 0x03, lower_knob_pins);
+	// check_knob_turns((ind & 0x03) + 4, upper_knob_pins);
+	//checkSwitch(grp, ind);
 
 	
-	//check for MX input
-	checkSwitch(&MX[grp], ind, palReadPad(GPIOC, grp), grp);
-
+	
 	//increment channel
 	ind = (ind+1) & 0x0F;
-	if(!ind) ++grp &= 0x03;
+	if(!ind)
+	{
+		grp = indexIncrement(grp, 1, 5);
+	}
+	
+	if(!(ticks % 700))
+	{
+		l_ind = (l_ind + 1) & 0x0F;
+		
+		//LogTextMessage("%u led\n", l_ind);
+	}
+	
+	//more generic control
+	/* for(uint32_t i = 0; i < 4; ++i)
+	{
+		write_pin(led_pins[i], 1);
+			
+	}
+	
+	//set the channel for the next read
+	for(int32_t i = 0; i < 4; ++i)
+	{
+		write_pin(chan_pins[i], (ind >> i) & 1);
+		
+	}
+	
+	
+	uint8_t on[4];
+	for(uint32_t i = 0; i < 4; ++i)
+	{
+		on[i] =  (LED[i] >> ind) & 1;
+		if(i == blinkGrp && ind == blinkInd)
+		{
+			on[i] = (ticks >> 10) & 1;
+		}
+		write_pin(led_pins[i], on[i]);
+			
+	} */
 	
 	//set the channel for the next read
 	palWriteGroup(GPIOA, 0x0F, 4, ind);
@@ -481,28 +710,34 @@ void __attribute__(( noinline )) scanInputs()
 	for(uint32_t i = 0; i < 4; ++i)
 	{
 		on[i] =  (LED[i] >> ind) & 1;
+		if(i == blinkGrp && ind == blinkInd)
+		{
+			on[i] = (ticks >> 10) & 1;
+		}			
 	}
-	if(ind == blinkInd)  on[blinkGrp] = (ticks >> 10) & 1;
 
 	//set the LEDS
-	palWritePad(GPIOC, 4, on[0]);
-	palWritePad(GPIOC, 5, on[1]);
-	palWritePad(GPIOA, 0, on[2]);
-	palWritePad(GPIOA, 1, on[3]);
+	palWritePad(GPIOC, 5, on[0]);
+	palWritePad(GPIOA, 0, on[1]);
+	palWritePad(GPIOA, 1, on[2]);
+	palWritePad(GPIOA, 2, on[3]);
+
+
 	
 
 }
 
-
-
-void __attribute__(( noinline )) checkSwitch(uint16_t *state, uint8_t ind, uint8_t sig, uint8_t group)
+void __attribute__(( noinline )) checkSwitch(uint8_t group, uint8_t ind, uint8_t sig)
 {
 	static uint32_t timer[5] = {0};
 	static uint16_t held[5];
 	
-	if(sig != ((*state >> ind) & 1))
+	uint8_t prev = (MX[group] >> ind) & 1;
+	
+
+	if(sig != prev)
 	{
-		*state ^= (1 << ind);
+		MX[group] ^= (1 << ind);
 		if(!sig) 
 		{
 			timer[group] = ticks;
@@ -514,17 +749,48 @@ void __attribute__(( noinline )) checkSwitch(uint16_t *state, uint8_t ind, uint8
 		}
 	}
 	
-	else if(!((*state >> ind) & 1) && !((held[group] >> ind) & 1) && ticks-timer[group] > HOLD_TIME)
+	else if(!sig && !((held[group] >> ind) & 1) && ticks-timer[group] > HOLD_TIME)
 	{
 		held[group] |= (1 << ind);
 		addToInputQueue(group, ind, 1, 0);
 	}
 }
 
+// void __attribute__(( noinline )) checkSwitch(uint8_t group, uint8_t ind)
+// {
+	// static uint32_t timer[5] = {0};
+	// static uint16_t held[5];
+	
+	// uint8_t sig = read_pin(mx_pins[group]);
+	// uint8_t prev = (MX[group] >> ind) & 1;
+	
+
+	// if(sig != prev)
+	// {
+		// MX[group] ^= (1 << ind);
+		// if(!sig) 
+		// {
+			// timer[group] = ticks;
+			// held[group] &= ~(1 << ind);
+		// }
+		// else if(!((held[group] >> ind) & 1)) 
+		// {
+			// addToInputQueue(group, ind, 1, 1);
+		// }
+	// }
+	
+	// else if(!sig && !((held[group] >> ind) & 1) && ticks-timer[group] > HOLD_TIME)
+	// {
+		// held[group] |= (1 << ind);
+		// addToInputQueue(group, ind, 1, 0);
+	// }
+// }
+
 
 void  __attribute__(( noinline )) addToInputQueue(uint8_t group, uint8_t ind, int32_t val, uint8_t isQuick)
 {
 	static uint8_t writeInd = 0;
+	if(group == 4 && ind > 7) ++group;
 	//LogTextMessage("g %u, ind %u, val %u, isQ %u", group, ind, val, isQuick);
 	if(inputQueue[writeInd][2] && (inputQueue[writeInd][0] != group || inputQueue[writeInd][1] != ind)) LogTextMessage("s");
 	inputQueue[writeInd][0] = group;
@@ -576,21 +842,18 @@ void  __attribute__(( noinline )) updateLEDs()
 			
 			//get main toggle statuses
 			
-			for(pos= 0; pos < 7; pos++)
+			for(pos= 0; pos < 8; pos++)
 			{
-				uint8_t isOn = SHIFTMASK(osc, BIG_GROUP[pos][0]);
+				uint8_t isOn = SHIFTMASK(osc, big_group[pos][0]);
 				
 				//leds that depend on other settings as well
-				switch(BIG_GROUP[pos][0])
+				switch(big_group[pos][0])
 				{
 					case bitMain: isOn &= ~(SHIFTMASK(MAINTOG, bitSolo) && osc != oscInd); break;
 					case bitFEnv: isOn &= SHIFTMASK(osc, bitFilt); break;
 				}
 				tLed[isSecond] |= (isOn << pos);
 			}
-		
-			//get last column toggle statuses
-			tLed[isSecond] |= LEDfromGroup(LAST_GROUP_COL[osc][0], pos, LAST_GROUP_COL[osc][1]);
 		}
 		//update the LED variables (every two osc)
 		if(isSecond) LED[osc >> 1] = ~(tLed[0] | (tLed[1] << 8));
@@ -600,7 +863,7 @@ void  __attribute__(( noinline )) updateLEDs()
 	LED[3] = 0;
 	for(uint8_t ind = 0; ind < 16; ind++)
 	{
-		LED[3] |= LEDfromGroup(OTHER_GROUP[ind][0], ind, OTHER_GROUP[ind][1]);
+		LED[3] |= LEDfromGroup(other_groups[ind][0], ind, other_groups[ind][1]);
 	}
 	LED[3] = ~LED[3];
 			
@@ -667,6 +930,10 @@ void __attribute__(( noinline )) copyOsc(uint8_t destOsc, uint8_t srcOsc, uint8_
 		uint32_t extraBits = (1 << bit);
 		switch(bit)
 		{
+			case bitHarms:
+				harmParams[destOsc] = harmParams[srcOsc];
+				extraBits |= (1 << bitHarms); 
+				break;
 			case bitAEnv: 
 				amp_env_knobs[destOsc] = amp_env_knobs[srcOsc]; 
 				break;
@@ -889,6 +1156,33 @@ uint8_t __attribute__(( noinline ))  finishRecording()
 	}
 } */
 
+int32_t __attribute__(( noinline )) unit_dir(int32_t inc)
+{
+	int32_t uInc = 0;
+	if(inc > 0)
+	{
+		uInc = 1;
+	}
+	else if(inc < 0)
+	{
+		uInc = -1;
+	}
+	return uInc;
+}
+
+int32_t __attribute__(( noinline )) ensure_not_self_ratio(int32_t inc)
+{
+	int32_t ret = 0;
+	if(pit_ratio[oscInd].src == oscInd)
+	{
+		inc = unit_dir(inc);
+		pit_ratio[oscInd].src = indexIncrement(pit_ratio[oscInd].src, inc, 6);
+		ret = 1;
+		
+	}
+	LCD_update[OBJ2] = 1;
+	return ret;
+}
 
 void __attribute__(( noinline )) updateUINT8val(uint8_t *val, int8_t inc, uint8_t isToggle, uint8_t LCD, uint32_t full)
 {
@@ -973,7 +1267,7 @@ void handleKnobs()
 		}
 		
 		//buttons
-		else if(inputGrp < 4)
+		else if(inputGrp < 5)
 		{
 			//main block
 			if(inputGrp < 3)
@@ -990,65 +1284,48 @@ void handleKnobs()
 					extra = -1;
 				}
 				else
-				{
+				{			
+					uint8_t col = (inputInd & 7);
+					osc = row;
+					tog = big_group[col][0];
+					scrn = big_group[col][1];
+					extra = big_group[col][2];
 					
-				
-					//uint8_t row = ((inputGrp << 4) + inputInd) >> 3;
-					
-					//columns 1-7 of main block (oscillator specific)
-					if((inputInd & 7) < 7)
+					//copy if applicable and cancel any other actions
+					if(wasCopy)
 					{
-						uint8_t col = (inputInd & 7);
-						osc = row;
-						tog = BIG_GROUP[col][0];
-						scrn = BIG_GROUP[col][1];
-						extra = BIG_GROUP[col][2];
+						if(tog == bitOsc)
+						{
+							next_loop = EX_COPY;
+							main_clock1 = MAIN_FADE;
+							main_clock2 = MAIN_FADE << 2;
+							next_inc = oscInd;
+						}
+						else copyOsc(osc, oscInd, tog);
 						
-						//copy if applicable and cancel any other actions
-						if(wasCopy)
-						{
-							if(tog == bitOsc)
-							{
-								next_loop = EX_COPY;
-								main_clock1 = MAIN_FADE;
-								main_clock2 = MAIN_FADE << 2;
-								next_inc = oscInd;
-							}
-							else copyOsc(osc, oscInd, tog);
-							
-							tog = -1;
-							extra = 0;
-						}
-						else if(wasRoute)
-						{
-							if(osc == oscInd)
-							{
-								blinkInd = inputInd;
-								blinkGrp = inputGrp;
-								routeTog = tog;
-								wasRoute = 0;
-							}
-							else routeMod(osc, tog, routeTog);
-							tog = -1;
-							scrn = -1;
-							extra = 0;
-							osc = oscInd;
-						}
-						else if(tog == bitMain && SHIFTMASK(MAINTOG, bitSolo) && osc != oscInd) 
-						{
-							SETBIT(osc, bitMain);
-							tog = -1;
-							extra = 0;
-						}
+						tog = -1;
+						extra = 0;
 					}
-					
-					//column 8 of main block (varied)
-					else
+					else if(wasRoute)
 					{
-						osc = LAST_GROUP_COL[row][0];
-						tog = LAST_GROUP_COL[row][1];
-						scrn = LAST_GROUP_COL[row][2];
-						extra = LAST_GROUP_COL[row][3];
+						if(osc == oscInd)
+						{
+							blinkInd = inputInd;
+							blinkGrp = inputGrp;
+							routeTog = tog;
+							wasRoute = 0;
+						}
+						else routeMod(osc, tog, routeTog);
+						tog = -1;
+						scrn = -1;
+						extra = 0;
+						osc = oscInd;
+					}
+					else if(tog == bitMain && SHIFTMASK(MAINTOG, bitSolo) && osc != oscInd) 
+					{
+						SETBIT(osc, bitMain);
+						tog = -1;
+						extra = 0;
 					}
 				}
 			}
@@ -1056,10 +1333,11 @@ void handleKnobs()
 			//remaining group (varied)
 			else
 			{
-				osc = OTHER_GROUP[inputInd][0];
-				tog = OTHER_GROUP[inputInd][1];
-				scrn = OTHER_GROUP[inputInd][2];
-				extra = OTHER_GROUP[inputInd][3];
+				int32_t t_ind = inputInd + ((inputGrp - 3) << 4);
+				osc = other_groups[t_ind][0];
+				tog = other_groups[t_ind][1];
+				scrn = other_groups[t_ind][2];
+				extra = other_groups[t_ind][3];
 			}
 			
 			if(osc == E_OSC) osc = oscInd;
@@ -1073,6 +1351,8 @@ void handleKnobs()
 			//tell filter track to fuck off too (needs to wait for volume reduction)
 			if(tog == bitFTrack) tog = -1;
 			
+			int32_t scrnOsc = osc;
+			
 			//toggle stuff
 			if(tog != -1 && inputQueue[readInd][3])
 			{
@@ -1082,7 +1362,7 @@ void handleKnobs()
 				if(tog == bitRoute)
 				{
 					blinkGrp = oscInd >> 1;
-					blinkInd = (oscInd & 1)? 8: 0;
+					blinkInd = (oscInd & 1)? 15: 7;
 					routeTog = bitOsc;
 				}
 				
@@ -1090,7 +1370,7 @@ void handleKnobs()
 				if(!SHIFTMASK(osc, tog))
 				{
 					scrn = -1;
-					osc = oscInd;
+					scrnOsc = oscInd;
 				}
 			}
 			
@@ -1103,6 +1383,9 @@ void handleKnobs()
 					
 					//case EX_WAVE: updateOscTypes(waveOsc, &waveCnt, noiseOsc, &noiseCnt, bitWave); break;
 					//case EX_FILT: updateOscTypes(filtOsc, &filtCnt, nonFiltOsc, &nonFiltCnt, bitFilt); break;
+					case EX_PIT_RATIO:
+						pit_ratio_update |= (1 << oscInd);
+						break;
 					case EX_SYNC: 
 						if(!isTog)
 						{
@@ -1149,6 +1432,10 @@ void handleKnobs()
 						break;
 					case EX_TRIG_ON:
 						if(isTog) onEvent(oscInd, oscInd, ALL_SLOTS, 1);
+						else onEvent(0, OSC_CNT-1, ALL_SLOTS, 1);
+						break;
+					case EX_TRIG_OFF:
+						if(isTog) offEvent(oscInd, oscInd, ALL_SLOTS, 1);
 						else offEvent(0, OSC_CNT-1, ALL_SLOTS, 1);
 						break;
 						
@@ -1157,7 +1444,7 @@ void handleKnobs()
 					case EX_HOLD_ALL: offEvent(0, OSC_CNT -1, ALL_SLOTS, 0); break;
 					case EX_ARPNOTREC: scrn = (isTog)? ARPEGNOTES: ARPREC; break;
 					case EX_PATSVLD: scrn = (isTog)? PATCHSV: PATCHLD; break;
-					case EX_HARM: HARM_update[oscInd] = -1; break;
+					case EX_HARM: HARM_update[osc] = -1; break;
 					case EX_FTRACK: 
 						main_clock1 = MAIN_FADE;
 						main_clock2 = MAIN_FADE << 2; 
@@ -1182,7 +1469,7 @@ void handleKnobs()
 			
 			//update the active oscillator
 			//if(osc != oscInd && osc != MAINTOG) toggleSelected(osc);
-			if(osc != MAINTOG) toggleSelected(osc);
+			if(scrnOsc != MAINTOG) toggleSelected(scrnOsc);
 			
 			//update the screen
 			if(scrn != -1) screenInd = scrn;
@@ -1204,9 +1491,9 @@ void handleKnobs()
 
 		
 		//vol knobs
-		else if((inputInd & 7) < 2)
+		else if((inputInd & 7) > 5)
 		{
-			isMainLVL = (inputInd & 7)? 0: 1;
+			isMainLVL = (inputInd & 1)? 0: 1;
 			if(inputInd & 8) inc = -127;
 			{
 				uint8_t *lvl = (isMainLVL)? &main_gain: & osc_gain[oscInd];
@@ -1232,7 +1519,7 @@ void handleKnobs()
 				{
 					uint8_t fType = (screenInd == WAVETBL)? WAVE: PATCH;
 					next_dir = !(inputInd & 1);
-					next_inc = inc;
+					next_inc = unit_dir(inc);
 					if(fType == PATCH) 
 					{
 						main_clock1 = MAIN_FADE;
@@ -1252,7 +1539,7 @@ void handleKnobs()
 				
 				case AMPENV:
 				{
-					uint8_t ind = knobPos(KNOB3, inputInd);//-1;
+					uint8_t ind = knobPos(KNOB1, inputInd);//-1;
 					updateUINT8val(&amp_env_knobs[oscInd].rate[0] + ind, inc, inputInd >= KNOB_BUT1, ind + OBJ1);
 
 				}
@@ -1261,45 +1548,105 @@ void handleKnobs()
 				case PITCH:
 				{
 					PIT_KNOBS *curPits = &pit_knobs[oscInd];
+					int32_t p_chg = 0;
 					switch(inputInd)
 					{
 						//legato
-						case KNOB3:
-						case KNOB_BUT3:	
+						case KNOB1:
+						case KNOB_BUT1:	
 							TOGGLEBIT(osc, bitLgto);
 							LCD_update[OBJ1] = 1;
 							break;
 							
 						//edit pitch
-						case KNOB5:
+						case KNOB3:
 							inc = inc<<PITCH_FINE_RES;
-						case KNOB6:
+						case KNOB4:
 							inc = inc<<PITCH_FINE;
 							curPits->pitch = __USAT(curPits->pitch + inc, PITCH_SAT);
 							LCD_update[OBJ3] = 1;
+							++p_chg;
 							break;
 						
 						//zero coarse pitch
-						case KNOB_BUT5:
+						case KNOB_BUT3:
 							curPits->pitch = (MIDI_KEY_0<<PITCH_COARSE) + (curPits->pitch & PITCH_MASK);
 							LCD_update[OBJ3] = 1;
+							++p_chg;
 							break;
 						
 						//zero fine pitch
-						case KNOB_BUT6:
+						case KNOB_BUT4:
 							curPits->pitch = curPits->pitch & ~PITCH_MASK;
 							LCD_update[OBJ3] = 1;
+							++p_chg;
 							break;
 						
+						
+						
 						//edit pit/vel glide
-						case KNOB8:
-						case KNOB_BUT8:
+						case KNOB6:
+						case KNOB_BUT6:
 							done = 1;
-						case KNOB7:
-						case KNOB_BUT7:
+						case KNOB5:
+						case KNOB_BUT5:
 							updateUINT8val(&(curPits->pit_glide) + done, inc, inputInd >= KNOB_BUT1, OBJ5 + done);
 							break;	
 					}
+					if(p_chg)
+					{
+						CLEARBIT(oscInd, bitPitRatio);
+						pit_ratio_update = 0xFF;
+						updateLEDs();
+					}
+					
+				}
+				break;
+				
+				case PITRATIO:
+				{
+					PIT_RATIO_KNOBS *cur = &pit_ratio[oscInd];
+					switch(inputInd)
+					{
+						//src
+						case KNOB1:
+						case KNOB_BUT1:
+						case KNOB2:
+						case KNOB_BUT2:
+							cur->src = indexIncrement(cur->src, inc, 6);
+							ensure_not_self_ratio(inc);
+							break;
+						
+						//dst value
+						case KNOB3:
+						case KNOB_BUT3:
+							updateUINT8val(&cur->dst_val, inc, inputInd > KNOB8, OBJ3, 1);
+							break;
+						
+						//src value
+						case KNOB4:
+						case KNOB_BUT4:
+							updateUINT8val(&cur->src_val, inc, inputInd > KNOB8, OBJ4, 1);
+							break;
+						
+						//offset
+						case KNOB5:
+							cur->offset = __SSAT(cur->offset + inc, 7);
+							LCD_update[OBJ5] = 1;
+							break;	
+							
+						case KNOB_BUT5:
+							cur->offset = cur->offset != 0? 0 : 63;
+							LCD_update[OBJ5] = 1;
+							break;
+						
+						//mod shortcut
+						case KNOB_BUT6:
+							addToInputQueue(3, 14, 1, 1); //rt mod button
+							addToInputQueue(cur->src / 2, 3 + ((cur->src & 1) ? 8 : 0), 1, 1); //pit env button for src
+							break;
+					}
+					pit_ratio_update |= (1 << oscInd);
 				}
 				break;
 				
@@ -1310,32 +1657,32 @@ void handleKnobs()
 					switch(inputInd)
 					{
 						//look at different envelope point
-						case KNOB_BUT3: 
-						case KNOB3:
-							envInd = indexIncrement(envInd, inc, FREE_STAGES + 2);
+						case KNOB_BUT1: 
+						case KNOB1:
+							envInd = indexIncrement(envInd, unit_dir(inc), FREE_STAGES + 2);
 							//curLCD = OBJ1;
 							updateLCDelems(OBJ1, OBJ6);
 							break;
 						
 						//type/bypass
-						case KNOB_BUT4:
-						case KNOB4:
+						case KNOB_BUT2:
+						case KNOB2:
 							if(!done) TOGGLEBIT(oscInd, bitFECut); LCD_update[OBJ2] = 1; break;
 							
 						//pitch
-						case KNOB5:
+						case KNOB3:
 							inc = inc<<PITCH_FINE_RES;
-						case KNOB6:
+						case KNOB4:
 							inc = inc<<PITCH_FINE;
 							curEnv->pitch[envInd] = __SSAT(curEnv->pitch[envInd] + inc, 29);
 							LCD_update[OBJ3] = 1;
 							break;
 						
 						//zero coarse pitch
-						case KNOB_BUT5: curEnv->pitch[envInd] = curEnv->pitch[envInd] & PITCH_MASK; LCD_update[OBJ3] = 1; break;
+						case KNOB_BUT3: curEnv->pitch[envInd] = curEnv->pitch[envInd] & PITCH_MASK; LCD_update[OBJ3] = 1; break;
 							
 						/* //record
-						case KNOB_BUT6: 
+						case KNOB_BUT4: 
 							CLEARBIT(oscInd, (done)? bitPEnv: bitFEnv);
 							SETBIT(MAINTOG, bitRecEnv);
 							recNotes = 0;
@@ -1343,21 +1690,23 @@ void handleKnobs()
 							
 							break; */
 						
-						//edit glide
-						case KNOB7:
-						case KNOB_BUT7: updateUINT8val(&curEnv->glide[envInd], inc, inputInd >= KNOB_BUT1, OBJ5); break;
-
 						//time
-						case KNOB8:
-						case KNOB_BUT8:
+						case KNOB6:
+						case KNOB_BUT6:
 							if(envInd < FREE_STAGES) 
 							{
 								updateUINT8val(&curEnv->time[envInd], inc, inputInd >= KNOB_BUT1, OBJ6);
 								//curLCD = OBJ6;
 								
 								LCD_update[OBJ6] = 1;
+								break;
 							}
-							break;
+							
+						//edit glide
+						case KNOB5:
+						case KNOB_BUT5: updateUINT8val(&curEnv->glide[envInd], inc, inputInd >= KNOB_BUT1, OBJ5); break;
+
+						
 					}
 				}
 				break;	
@@ -1371,8 +1720,8 @@ void handleKnobs()
 					switch(inputInd)
 					{
 						//beats
-						case KNOB_BUT3:
-						case KNOB3:
+						case KNOB_BUT1:
+						case KNOB1:
 							if(inputInd > 7) curArp->steps = (curArp->steps == 1)? 4: 1;
 							else curArp->steps = indexIncrement(curArp->steps-1, inc, MAXARP)+ 1;
 							resetArpPages(oscInd, oscInd);
@@ -1381,11 +1730,11 @@ void handleKnobs()
 							LCD_update[OBJ1] = 1;
 							break;
 						
-						case KNOB4:
-						case KNOB_BUT4: TOGGLEBIT(oscInd, bitArpFilt); LCD_update[OBJ2] = 1; break;
+						case KNOB2:
+						case KNOB_BUT2: TOGGLEBIT(oscInd, bitArpFilt); LCD_update[OBJ2] = 1; break;
 						
 						//BPM inc size
-						case KNOB_BUT5:
+						case KNOB_BUT3:
 						
 							++indBPM &= 3;
 		
@@ -1393,20 +1742,20 @@ void handleKnobs()
 							break;
 						
 						//BPM
-						case KNOB5: updateArpTime(oscInd, curArp->BPM + inc * incsBPM[indBPM]); LCD_update[OBJ3] = 1; break;
-						//case KNOB5: updateArpTime(oscInd, curArp->BPM + inc * BPM_inc); LCD_update[OBJ3] = 1; break;
+						case KNOB3: updateArpTime(oscInd, curArp->BPM + inc * incsBPM[indBPM]); LCD_update[OBJ3] = 1; break;
+						//case KNOB3: updateArpTime(oscInd, curArp->BPM + inc * BPM_inc); LCD_update[OBJ3] = 1; break;
 							
 						//glide rate
-						case KNOB6:
-						case KNOB_BUT6: updateUINT8val(&curArp->G, inc, inputInd >= KNOB_BUT1, OBJ4); break;
+						case KNOB4:
+						case KNOB_BUT4: updateUINT8val(&curArp->G, inc, inputInd >= KNOB_BUT1, OBJ4); break;
 						
 						//loop/trig
-						case KNOB7:
-						case KNOB_BUT7: TOGGLEBIT(osc, bitArpTrig); LCD_update[OBJ5] = 1; break;
+						case KNOB5:
+						case KNOB_BUT5: TOGGLEBIT(osc, bitArpTrig); LCD_update[OBJ5] = 1; break;
 						
 						//skip/all
-						case KNOB8:
-						case KNOB_BUT8: TOGGLEBIT(osc, bitArpSkip); LCD_update[OBJ6] = 1; break;						
+						case KNOB6:
+						case KNOB_BUT6: TOGGLEBIT(osc, bitArpSkip); LCD_update[OBJ6] = 1; break;						
 					}
 				}
 				break;
@@ -1419,9 +1768,9 @@ void handleKnobs()
 					switch(inputInd)
 					{
 						//page index
-						case KNOB3:
-						case KNOB_BUT3:
-							arp_page[oscInd] = indexIncrement(arp_page[oscInd], inc, arp_pages[oscInd]);
+						case KNOB1:
+						case KNOB_BUT1:
+							arp_page[oscInd] = indexIncrement(arp_page[oscInd], unit_dir(inc), arp_pages[oscInd]);
 							
 							if(SHIFTMASK(MAINTOG, bitDrum))
 							{
@@ -1435,10 +1784,10 @@ void handleKnobs()
 							break;
 						
 						//display toggle
-						case KNOB4:
-						case KNOB_BUT4:
+						case KNOB2:
+						case KNOB_BUT2:
 						{
-							uint8_t tTog = indexIncrement(arpToggle[0], inc, (SHIFTMASK(oscInd, bitArpFilt))? 2: 3);
+							uint8_t tTog = indexIncrement(arpToggle[0], unit_dir(inc), (SHIFTMASK(oscInd, bitArpFilt))? 2: 3);
 							memset(&arpToggle, tTog, sizeof(arpToggle));
 							updateLCDelems(OBJ3, OBJ6);
 						}
@@ -1446,11 +1795,11 @@ void handleKnobs()
 							
 						//steps
 						default:
-							posInd = knobPos(KNOB5, inputInd);//(inputInd > KNOB8)? inputInd - KNOB_BUT5 : inputInd - KNOB5;
+							posInd = knobPos(KNOB3, inputInd);//(inputInd > KNOB6)? inputInd - KNOB_BUT3 : inputInd - KNOB3;
 							uint8_t stepInd = posInd + (arp_page[oscInd] << 2);
 							if(stepInd <= curArp->steps)
 							{
-								if(inputInd > KNOB8) arpToggle[posInd] = indexIncrement(arpToggle[posInd], inc, (SHIFTMASK(oscInd, bitArpFilt))? 2: 3);
+								if(inputInd > KNOB6) arpToggle[posInd] = indexIncrement(arpToggle[posInd], inc, (SHIFTMASK(oscInd, bitArpFilt))? 2: 3);
 								else if(arpToggle[posInd] == PIT_TOG) curArp->P[stepInd] = __SSAT(curArp->P[stepInd] + inc, 8);
 								else if(arpToggle[posInd] == ENV_TOG) curArp->E[stepInd] = (curArp->E[stepInd] + inc) & 0x07;
 								else curArp->V[stepInd] = __USAT(curArp->V[stepInd] + inc, 7);
@@ -1464,20 +1813,20 @@ void handleKnobs()
 				case ARPREC:
 					switch(inputInd)
 					{
-						case KNOB3:
-						case KNOB_BUT3:
+						case KNOB1:
+						case KNOB_BUT1:
 							recRhythm = (recRhythm == 1)? 0: 1;
 							LCD_update[OBJ1] = 1;
 							break;
 						
-						case KNOB4:
-						case KNOB_BUT4:
+						case KNOB2:
+						case KNOB_BUT2:
 							recVel = (recVel == 1)? 0: 1;
 							LCD_update[OBJ2] = 1;
 							break;	
 
-						case KNOB8: break;
-						case KNOB_BUT8: 
+						case KNOB6: break;
+						case KNOB_BUT6: 
 						{
 							CLEARBIT(oscInd, bitArp);
 							SETBIT(MAINTOG, bitRecArp);
@@ -1487,10 +1836,10 @@ void handleKnobs()
 						}
 						break;
 						
-						case KNOB_BUT5:
+						case KNOB_BUT3:
 							recEnv = (recEnv == 0)? 7: 0;
 							done = 1;
-						case KNOB5:
+						case KNOB3:
 							if(!done) recEnv = (recEnv + inc) & 0x07;
 							LCD_update[OBJ3] = 1;
 							break;
@@ -1507,26 +1856,26 @@ void handleKnobs()
 						
 						
 						//type
-						case KNOB3:
-						case KNOB_BUT3:
+						case KNOB1:
+						case KNOB_BUT1:
 						
-							curFilt->TYPE = indexIncrement(curFilt->TYPE, inc, 3);
+							curFilt->TYPE = indexIncrement(curFilt->TYPE, unit_dir(inc), 3);
 							//curLCD = 2;
 							LCD_update[OBJ1] = 1;
 							break;
 						
 						//track keys
-						case KNOB4:
-						case KNOB_BUT4:
+						case KNOB2:
+						case KNOB_BUT2:
 							main_clock1 = MAIN_FADE;
 							main_clock2 = MAIN_FADE << 2; 
 							next_loop = EX_FTRACK;
 							break;
 						
 						//edit pitch
-						case KNOB5:
+						case KNOB3:
 							inc = inc<<PITCH_FINE_RES;
-						case KNOB6:
+						case KNOB4:
 							inc = inc<<PITCH_FINE;
 							if(SHIFTMASK(oscInd, bitFTrack)) curFilt->FRQ = __SSAT(curFilt->FRQ + inc, PITCH_SAT);
 							else curFilt->FRQ = __USAT(curFilt->FRQ + inc, PITCH_SAT);
@@ -1534,7 +1883,7 @@ void handleKnobs()
 							break;
 						
 						//zero coarse pitch
-						case KNOB_BUT5:
+						case KNOB_BUT3:
 							if(SHIFTMASK(oscInd, bitFTrack)) curFilt->FRQ = (curFilt->FRQ & PITCH_MASK);
 							else
 							{
@@ -1547,16 +1896,16 @@ void handleKnobs()
 							break;
 						
 						//zero fine pitch
-						case KNOB_BUT6:
+						case KNOB_BUT4:
 							curFilt->FRQ = curFilt->FRQ & ~PITCH_MASK;
 							LCD_update[OBJ3] = 1;
 							break;
 							
 						//filter res
-						case KNOB7:
-						case KNOB8:
-						case KNOB_BUT7:
-						case KNOB_BUT8:
+						case KNOB5:
+						case KNOB6:
+						case KNOB_BUT5:
+						case KNOB_BUT6:
 							updateUINT8val(&curFilt->RES, inc, inputInd >= KNOB_BUT1, OBJ5);
 							break;	
 					}
@@ -1568,17 +1917,23 @@ void handleKnobs()
 					switch(inputInd)
 					{
 						//change dir
-						case KNOB3:
-						case KNOB4:
+						case KNOB1:
+						case KNOB_BUT1:
 						case NEXT_PREV:
-							saveDirInd = indexIncrement(saveDirInd, inc , browseCnt[PATCH].dirs);
+							saveDirInd = indexIncrement(saveDirInd, unit_dir(inc) , browseCnt[PATCH].dirs);
 							LCD_update[OBJ1] = 1;	
 							LCD_update[OBJ2] = 1;	
 						break;
 						
+						case KNOB_BUT2:
+							strcpy(saveName, saveCopyStr[2]);
+							saveNameInd = 0;
+							LCD_update[OBJ5] = 1;
+							break;
+							
 						//edit current letter
+						case KNOB3:
 						case KNOB5:
-						case KNOB7:
 						{
 							if(saveName[saveNameInd] == ' ')
 								saveName[saveNameInd] = lastLetter;
@@ -1601,9 +1956,10 @@ void handleKnobs()
 						break;
 						
 						//edit current letter type (upper/lower/number)
+						case KNOB_BUT3:
 						case KNOB_BUT5:
-						case KNOB_BUT7:
-							if(saveName[saveNameInd] >= 'A') saveName[saveNameInd] = '0';
+							if(saveName[saveNameInd] >= 'A') saveName[saveNameInd] = ' ';
+							else if(saveName[saveNameInd] == ' ') saveName[saveNameInd] = '0';
 							else if(saveName[saveNameInd] >= '0') saveName[saveNameInd] = '!';
 							else saveName[saveNameInd] = 'A';
 							
@@ -1611,17 +1967,17 @@ void handleKnobs()
 							break;
 						
 						//change letter index
+						case KNOB4:
 						case KNOB6:
-						case KNOB8:
 						
 							
-							saveNameInd = indexIncrement(saveNameInd, inc, MAXFNAMELEN-1);
+							saveNameInd = indexIncrement(saveNameInd, unit_dir(inc), MAXFNAMELEN-1);
 							LCD_update[OBJ5] = 1;
 							break;
 							
 						//save file
+						case KNOB_BUT4:
 						case KNOB_BUT6:
-						case KNOB_BUT8:
 							if(savePatch() > 0) {isSaved = 1; LCD_update[OBJ5] = 1;}
 							//knob_incs[inputInd] = 0;
 							break;
@@ -1635,22 +1991,22 @@ void handleKnobs()
 					switch(inputInd)
 					{
 						//midi channel toggle
-						case KNOB_BUT3:
-						case KNOB3:
-							if(inputInd > KNOB8) curKnobs->chan = (curKnobs->chan > 0)? 0: 1;
+						case KNOB_BUT1:
+						case KNOB1:
+							if(inputInd > KNOB6) curKnobs->chan = (curKnobs->chan > 0)? 0: 1;
 							else curKnobs->chan = indexIncrement(curKnobs->chan, inc, 17);
 							//initOscMidi(oscInd, oscInd);
 							LCD_update[OBJ1] = 1;
 							break;			
 						
 						//high key
-						case KNOB4:
-						case KNOB_BUT4: 
-						case KNOB6: 
-						case KNOB_BUT6:
+						case KNOB2:
+						case KNOB_BUT2: 
+						case KNOB4: 
+						case KNOB_BUT4:
 						{
-							uint8_t type = (inputInd > KNOB8)? 0 : inc;
-							uint8_t isLow = (inputInd & 7) - KNOB4;
+							uint8_t type = (inputInd > KNOB6)? 0 : inc;
+							uint8_t isLow = (inputInd & 7) - KNOB2;
 							uint8_t *high = &curKnobs->keyMax;
 							uint8_t *low = &curKnobs->keyMin;
 
@@ -1678,8 +2034,8 @@ void handleKnobs()
 							
 							
 						//vel type
-						/* case KNOB5:
-						case KNOB_BUT5:
+						/* case KNOB3:
+						case KNOB_BUT3:
 							if(SHIFTMASK(oscInd, bitWind))
 							{
 								CLEARBIT(oscInd, bitWind);
@@ -1689,8 +2045,8 @@ void handleKnobs()
 							LCD_update[OBJ3] = 1;
 							break; */
 							
-						case KNOB7:
-						case KNOB_BUT7:
+						case KNOB5:
+						case KNOB_BUT5:
 							TOGGLEBIT(osc, bitLgto);
 							LCD_update[OBJ5] = 1;
 							break;
@@ -1702,21 +2058,21 @@ void handleKnobs()
 				case MIDICCS:
 				{
 					uint8_t ind = -1;
-					if(inputInd >= KNOB1 && inputInd <= KNOB8) ind = inputInd - KNOB3;
-					else if(inputInd >= KNOB_BUT1 && inputInd <= KNOB_BUT8) ind = inputInd - KNOB_BUT3;
+					if(inputInd >= KNOB7 && inputInd <= KNOB6) ind = inputInd - KNOB1;
+					else if(inputInd >= KNOB_BUT1 && inputInd <= KNOB_BUT6) ind = inputInd - KNOB_BUT1;
 					if(ind != -1) updateUINT8val(&midi_knobs[oscInd].CC_nums[0] + ind, inc, inputInd >= KNOB_BUT1, ind + OBJ1);
 				}	
 				break;
 					
 				case MODA:
 				{
-					uint8_t ind = knobPos(KNOB3, inputInd);
-					/* if((inputInd - KNOB3) & 1)
-					if(inputInd >= KNOB3 && inputInd <= KNOB6) ind = inputInd - KNOB3;
-					else if(inputInd >= KNOB_BUT3 && inputInd <= KNOB_BUT6) ind = inputInd - KNOB_BUT3;
+					uint8_t ind = knobPos(KNOB1, inputInd);
+					/* if((inputInd - KNOB1) & 1)
+					if(inputInd >= KNOB1 && inputInd <= KNOB4) ind = inputInd - KNOB1;
+					else if(inputInd >= KNOB_BUT1 && inputInd <= KNOB_BUT4) ind = inputInd - KNOB_BUT1;
 					if(ind != -1) */
 					{
-						if(inputInd > KNOB8) mod_src[oscInd][ind] = (mod_src[oscInd][ind] == 0)? 1 : 0;
+						if(inputInd > KNOB6) mod_src[oscInd][ind] = (mod_src[oscInd][ind] == 0)? 1 : 0;
 						else mod_src[oscInd][ind] = indexIncrement(mod_src[oscInd][ind], inc, TOTAL_MODS);
 						updateSingleMod(ind, oscInd, mod_src[oscInd][ind]);
 						LCD_update[ind + OBJ1] = 1;
@@ -1726,12 +2082,12 @@ void handleKnobs()
 				
 				case OUTS:
 				{
-					int32_t knob = knobPos(KNOB3, inputInd);
+					int32_t knob = knobPos(KNOB1, inputInd);
 					if(knob < 2)
 					{
-						if(inputInd > KNOB8)
+						if(inputInd > KNOB6)
 						{
-							panLeft[oscInd] = 64;//((inputInd - KNOB3) & 1)? ((panLeft[oscInd] == 0)? 127 : (panLeft[oscInd] > 64)? 64: 0;) : 
+							panLeft[oscInd] = 64;//((inputInd - KNOB1) & 1)? ((panLeft[oscInd] == 0)? 127 : (panLeft[oscInd] > 64)? 64: 0;) : 
 																		//((panLeft[oscInd] == 127)? 0 : (panLeft[oscInd] < 64)? 64: 127);
 						}
 						else panLeft[oscInd] = __USAT(panLeft[oscInd] - inc, 7);
@@ -1742,12 +2098,12 @@ void handleKnobs()
 					//	const uint32_t sh = 5;
 					//	if(!(knob & 1) || knob > 3)
 					//	{
-					//		updateUINT8val(&delay_left_knobs[oscInd], inc, inputInd > KNOB8, OBJ3, 1); 
+					//		updateUINT8val(&delay_left_knobs[oscInd], inc, inputInd > KNOB6, OBJ3, 1); 
 					//		delay_read_left[oscInd] = delay_write - (delay_left_knobs[oscInd] << sh) - 1;
 					//	}
 					//	if((knob & 1) || knob > 3)
 					//	{
-					//		updateUINT8val(&delay_right_knobs[oscInd], inc, inputInd > KNOB8, OBJ4, 1); 
+					//		updateUINT8val(&delay_right_knobs[oscInd], inc, inputInd > KNOB6, OBJ4, 1); 
 					//		delay_read_right[oscInd] = delay_write - (delay_right_knobs[oscInd] << sh) - 1;
 					//	}
 					//}
@@ -1763,8 +2119,8 @@ void handleKnobs()
 					switch(inputInd)
 					{
 						//page index
-						case KNOB3:
-						case KNOB_BUT3:
+						case KNOB1:
+						case KNOB_BUT1:
 						if(oscInd < POLY_CNT)
 							{
 								notesPage = (notesPage)? 0: 1;
@@ -1774,8 +2130,8 @@ void handleKnobs()
 							break;
 						
 						//pitch/vel toggle
-						case KNOB4:
-						case KNOB_BUT4:
+						case KNOB2:
+						case KNOB_BUT2:
 							notesTog = (notesTog)? 0: 1;
 							updateLCDelems(OBJ2, OBJ6);
 							break;
@@ -1783,13 +2139,13 @@ void handleKnobs()
 						//steps
 						default:
 							
-							stepInd = (notesPage << 2) + inputInd - ((inputInd > KNOB8)? KNOB_BUT5: KNOB5);
+							stepInd = (notesPage << 2) + inputInd - ((inputInd > KNOB6)? KNOB_BUT3: KNOB3);
 							if(stepInd < childCnt(oscInd))
 							{
 								uint8_t child = firstChild[oscInd] + stepInd;
 								//LogTextMessage("h");
 								LCD_update[(stepInd & 3) + OBJ3] = 1;
-								if(inputInd > KNOB8)
+								if(inputInd > KNOB6)
 								{
 									if(!notesTog) pitchShift = (pitchShift == PITCH_COARSE)? PITCH_FINE: PITCH_COARSE;
 									else vel[child] = -monoVel[oscInd];
@@ -1814,7 +2170,7 @@ void handleKnobs()
 				
 				case HARMONIC:
 				{
-					uint8_t ind = knobPos(KNOB3, inputInd);//-1;
+					uint8_t ind = knobPos(KNOB1, inputInd);//-1;
 					updateUINT8val(&harmParams[oscInd].gainFund + ind, inc, inputInd >= KNOB_BUT1, ind + OBJ1);
 					if(ind == 1  && !*(&harmParams[oscInd].gainFund + ind))
 					{
@@ -1826,7 +2182,7 @@ void handleKnobs()
 				
 				case PHASE:
 				{
-					uint8_t pos = knobPos(KNOB3, inputInd);
+					uint8_t pos = knobPos(KNOB1, inputInd);
 					if(pos < 4)
 					{
 						pos = (pos & 1)? 1 : 0;
@@ -1857,14 +2213,27 @@ void handleKnobs()
 		}
 	}
 	++readInd &= 0x03;
-	//inputInd = indexIncrement(inputInd, 1, INPUTS);
 	
 	#endif
 }
 	
 
-		
-
+void __attribute__(( noinline )) updatePitRatio()
+{
+	static int32_t uInd = 0;
+	if((pit_ratio_update >> uInd) & 1)
+	{
+		pit_ratio_update &= ~(1 << uInd);
+		PIT_RATIO_KNOBS *cur = &pit_ratio[uInd];
+		if(SHIFTMASK(uInd, bitPitRatio))
+		{
+			float ratio = float(cur->dst_val + 1) / float(cur->src_val + 1);
+			uint32_t goalPhase = float(getPhaseInc(pit_knobs[cur->src].pitch)) * ratio;
+			pit_knobs[uInd].pitch = getPitch(goalPhase) + (cur->offset << PITCH_FINE);
+		}
+	}
+	uInd = indexIncrement(uInd, 1, 6);
+}
 		
 void __attribute__(( noinline )) updateSingleMod(uint8_t modType, uint8_t destParent, uint8_t sourceIndex)
 {
@@ -2012,7 +2381,7 @@ void __attribute__((noinline)) resetArpPages(uint8_t firstOsc, uint8_t lastOsc)
 uint8_t __attribute__(( noinline )) knobPos(uint8_t zeroKnob, uint8_t knobID)
 {	
 	uint8_t ind = knobID - zeroKnob;
-	if(knobID > KNOB8) ind -= 8;
+	if(knobID > KNOB6) ind -= 8;
 	return ind;
 }
 

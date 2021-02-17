@@ -25,6 +25,13 @@ struct PIT_ENV_KNOBS {
 	int32_t pitch[FREE_STAGES + 2];	
 };
 	
+struct PIT_RATIO_KNOBS {
+	uint8_t src;
+	uint8_t src_val;
+	uint8_t dst_val;
+	int8_t offset;
+};
+
 struct FILT_KNOBS {
 	int32_t FRQ;
 	uint8_t RES;

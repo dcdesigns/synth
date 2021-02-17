@@ -50,6 +50,7 @@ static const uint16_t WAVE_READ_INC = (WAVE_RES * WAVE_BYTES) >> 4;
 static const uint8_t WAVE_IND_INC = WAVE_READ_INC >> 2;
 static const uint8_t WAVE_REPS = WAVE_RES/WAVE_IND_INC;
 
+const char def_wave[] = "SIN";
 
 //string settings for files
 static const uint8_t MAXFNAMELEN =(6 + 1);
@@ -73,9 +74,8 @@ static const uint8_t MAXFNAMELEN =(6 + 1);
 
 //knob object indexes
 #define ENCODERS 8 
-static const uint8_t INPUTS = (ENCODERS * 3);
 
-#define KNOB_GRP 4
+#define KNOB_GRP 5
 #define KNOB1 0
 #define KNOB2 1
 #define KNOB3 2
@@ -128,7 +128,8 @@ static const uint8_t LCDelems = OBJ6 + 1;
 #define FAVS 16
 #define HARMONIC 17
 #define PHASE 18
-#define SCREEN_CNT 19
+#define PITRATIO 19
+#define SCREEN_CNT 20
 
 //status bits
 #define bitSolo 0
@@ -174,6 +175,7 @@ static const uint8_t LCDelems = OBJ6 + 1;
 #define bitPhase 23
 #define bitAudio 24
 //next four bits define audio index
+#define bitPitRatio 29
 	
 	
 #define EX_WAVE 1
@@ -197,6 +199,7 @@ static const uint8_t LCDelems = OBJ6 + 1;
 #define EX_PATCHLD 19
 #define EX_HARM 20
 #define EX_COPY 21
+#define EX_PIT_RATIO 22
 #define poopSize 501
 
 static const float incsBPM[4] = {.1, 1, 10, 100};
@@ -209,33 +212,44 @@ static const uint8_t charH[3] = {'Z', '9', ')'};
 
 #define HOLD_TIME 300
 	
-static const int8_t BIG_GROUP[7][3] = {
-	{bitOsc, -1, 0},
-	{bitAEnv, AMPENV, 0},
-	{bitPEnv, PITENV, 0},
-	{bitFilt, FILTER, EX_FILT},
-	{bitFEnv, FILTENV, 0},
-	{bitArp, ARPEGSETUP, 0},
-	{bitMain, OUTS, 0}
-};
+// static const int8_t BIG_GROUP[8][3] = {
+	// {bitOsc, -1, 0},
+	// {bitHarms, HARMONIC, EX_HARM},
+	// {bitAEnv, AMPENV, 0},
+	// {bitPEnv, PITENV, 0},
+	// {bitFilt, FILTER, EX_FILT},
+	// {bitFEnv, FILTENV, 0},
+	// {bitArp, ARPEGSETUP, 0},
+	// {bitMain, OUTS, 0}
+// };
 
-static const int8_t LAST_GROUP_COL[6][4] = {
-	{MAINTOG, bitSolo, -1, 0},
-	{MAINTOG, bitRoute, -1, 0},
-	{MAINTOG, bitCopy, -1, 0},
-	{MAINTOG, bitArpSync, -1, EX_SYNC},
-	{E_OSC, -1, -1, EX_PATSVLD},
-	{E_OSC, -1, FAVS, EX_FAV1},	
-};
+// static const int8_t OTHER_GROUPS[24][4] = {
+	// {E_OSC, bitMod, MODA, 0},									//lower mid row		
+	// {E_OSC, bitWave, WAVETBL, EX_WAVE}, 			
+	// {E_OSC, bitPoly, PITCH, EX_POLY}, 
+	// {E_OSC, bitPhase, PHASE, EX_HARM}, 		
+	// {E_OSC, bitNotes, NOTES, 0}, 
+	// {E_OSC, bitEnvs, MIDIINS, 0}, 
+	// {E_OSC, bitKeyVel, MIDICCS, 0}, 
+	// {E_OSC, bitHold, -1, EX_HOLD1},	
+	
+	// {MAINTOG, bitMidiThru, -1, 0}, 								//lower left row
+	// {MAINTOG, bitSolo, -1, 0}, 
+	// {MAINTOG, bitHoldAll, -1, EX_HOLD_ALL}, 
+	// {MAINTOG, bitArpSync, -1, EX_SYNC},
+	// {MAINTOG, bitDrum, ARPEGNOTES, EX_DRUM}, 	
+	// {E_OSC, -1, -1, EX_ARPNOTREC}, 		
+				
+	// {MAINTOG, bitRoute, -1, 0}, 	{MAINTOG, bitCopy, -1, 0}, 	//columns
+	// {E_OSC, -1, -1, EX_PATSVLD}, 	{E_OSC, -1, -1, EX_PATRNDCLR}, 
+	// {E_OSC, -1, FAVS, EX_FAV1},		{E_OSC, -1, FAVS, EX_FAV2},	
+	// {E_OSC, -1, FAVS, EX_FAV3}, 	{E_OSC, -1, FAVS, EX_FAV4},		
+	// {E_OSC, -1, -1, EX_TRIG_ON}, 	{E_OSC, -1, -1, EX_TRIG_OFF}
+// };
+	
+	
+//filter track toggle {E_OSC, bitFTrack, FILTER, EX_FTRACK}, 	
 
-
-static const int8_t OTHER_GROUP[16][4] = {
-																														{MAINTOG, bitDrum, ARPEGNOTES, EX_DRUM}, 	{E_OSC, -1, -1, EX_ARPNOTREC},
-																														{E_OSC, -1, -1, EX_PATRNDCLR}, 				{E_OSC, -1, -1, EX_TRIG_ON},
-																														{MAINTOG, bitMidiThru, -1, 0}, 				{MAINTOG, bitHoldAll, -1, EX_HOLD_ALL},
-	{E_OSC, bitWave, WAVETBL, EX_WAVE}, {E_OSC, bitHarms, HARMONIC, EX_HARM},	{E_OSC, bitPoly, PITCH, EX_POLY}, 		{E_OSC, bitNotes, NOTES, 0}, 				{E_OSC, bitHold, -1, EX_HOLD1},
-	{E_OSC, bitMod, MODA, 0}, 			{E_OSC, bitPhase, PHASE, EX_HARM}, 		{E_OSC, bitFTrack, FILTER, EX_FTRACK},	{E_OSC, bitEnvs, MIDIINS, 0}, 				{E_OSC, bitKeyVel, MIDICCS, 0}			
-};
 	
 
 

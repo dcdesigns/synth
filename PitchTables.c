@@ -7,23 +7,133 @@ static uint32_t phase_width_incs[256][2] __attribute__ ((section (".sdram")));
 static uint32_t PHASEINCS[257] __attribute__ ((section (".sram")));
 static uint32_t ATTACK_K[128]; 
 static uint32_t SEEK[128];
-static uint32_t SEEK_S_RATE[128] __attribute__ ((section (".sram"))); 
-static uint32_t GAIN[128] __attribute__ ((section (".sram"))); 
+static uint32_t SEEK_S_RATE[128]; 
+static uint32_t GAIN[128] __attribute__ ((section (".sdram"))); 
 static uint32_t VELGAIN[128] __attribute__ ((section (".sdram")));
 static uint16_t TIME[128] __attribute__ ((section (".sdram")));
 static char screens[SCREEN_CNT][4][21] __attribute__ ((section (".sdram")));
 static char SCREENS[SCREEN_CNT][9] __attribute__ ((section (".sdram")));
 static char noteLabels[169][5] __attribute__ ((section (".sdram")));
+static int8_t big_group[8][3] __attribute__ ((section (".sdram")));
+static int8_t other_groups[24][4] __attribute__ ((section (".sdram")));
+uint8_t parents[OSC_CHILD_CNT];
+uint8_t firstChild[OSC_CNT];
+char chan_pins[4][3] __attribute__ ((section (".sdram")));
+char mx_pins[5][3] __attribute__ ((section (".sdram"))); 
+char led_pins[4][3] __attribute__ ((section (".sdram")));
+char lower_knob_pins[2][3] __attribute__ ((section (".sdram")));
+char upper_knob_pins[2][3] __attribute__ ((section (".sdram")));
+
+char saveCopyStr[3][7] __attribute__ ((section (".sdram")));
+char oscStr[6][5] __attribute__ ((section (".sdram")));
+char lvlStr[3][4] __attribute__ ((section (".sdram")));
+char arpNoteLeader[3][4] __attribute__ ((section (".sdram")));
+char yesNoStr[2][4] __attribute__ ((section (".sdram")));
+char onOffStr[2][4] __attribute__ ((section (".sdram")));
+char startStopStr[2][7] __attribute__ ((section (".sdram")));
+char copyWhat[2][4] __attribute__ ((section (".sdram")));
+char envStr[5][6] __attribute__ ((section (".sdram")));
+char filtStr[3][4] __attribute__ ((section (".sdram")));
+char stageStr[5][4] __attribute__ ((section (".sdram")));
+char notesStr[2][4] __attribute__ ((section (".sdram")));
+char trackStr[2][4] __attribute__ ((section (".sdram")));
+char velStr[3][7] __attribute__ ((section (".sdram")));
+char loopStr[4][6] __attribute__ ((section (".sdram")));
+char modStrA[5][5] __attribute__ ((section (".sdram")));
+char modStrB[9][4] __attribute__ ((section (".sdram")));
+char modStrO[6][3] __attribute__ ((section (".sdram")));
+
+char recStr[5] __attribute__ ((section (".sdram")));
+char timeStr[6] __attribute__ ((section (".sdram")));
+char typeStr[6] __attribute__ ((section (".sdram")));
+char favStr[2][21] __attribute__ ((section (".sdram")));
+char nts[12][4] __attribute__ ((section (".sdram")));
+char units[3][3] __attribute__ ((section (".sdram")));
+
 
 const uint8_t noteLabelTypes[3] = {82, 139, 168};
 const uint8_t SET2 = 140;
 const uint8_t maxNoteLabelInd = 168;
 
+const uint16_t DATA_SZ[] = {256 * 2 * 4, 257 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 2, SCREEN_CNT * 4 * 21, SCREEN_CNT * 9, 169 * 5, 24, 96, 20, 6, 12, 15, 12, 6, 6, 
+	21,30, 12, 12, 8, 8, 14, 8, 30, 12, 20, 8, 8, 21, 24, 25, 36, 18, 5, 6, 6, 42, 48, 9}; 
+const int32_t DATA_CNT = 44;
+	
 
 //stored data arrays
 #if LOADTABLES
+const char DATA_saveCopyStr[3][7] = {"SAVED.", "DONE.", "      "};
+const char DATA_oscStr[6][5] = {"POL1", "POL2", "MON1", "MON2", "MON3", "MON4"}; 
+const char DATA_lvlStr[3][4] = {"LVL", "MST"};
+const char DATA_arpNoteLeader[3][4] = {" P", " E:", " V:"};
+const char DATA_yesNoStr[2][4] = {"NO", "YES"};
+const char DATA_onOffStr[2][4] = {"OFF", "ON"};
+const char DATA_startStopStr[2][7] = {"*START", "*STOP:"};
+const char DATA_copyWhat[2][4] = {"ALL", "ARP"};
+const char DATA_envStr[5][6] = {"PITCH", "F.CUT", "RES"};
+const char DATA_filtStr[3][4] = {"LPF", "BPF", "HPF"};
+const char DATA_stageStr[5][4] = {"1ST", "2ND", "3RD", "SUS", "REL"};
+const char DATA_notesStr[2][4] = {"PIT", "VEL"};
+const char DATA_trackStr[2][4] = {"YES", "ENV"};
+const char DATA_velStr[3][7] = {"NONE","KEYVEL","WINDCC"};
+const char DATA_loopStr[4][6] = {"TRIG-", "LOOP-", "SKIP", "ALL"};
+const char DATA_modStrA[5][5] = {"----", "MAIN", "AUDM", "AUDL", "AUDR"};
+const char DATA_modStrB[9][4] = {"WND", "MDW", "PBD", "SUS", "OUT", "AMP", "PIT", "FLT", "ARP"};
+const char DATA_modStrO[6][3] = {"P1", "P2", "M1", "M2", "M3", "M4"}; 
 
-const uint32_t data_phase_width_incs[256][2] = {
+const char DATA_recStr[5] = "*REC";
+const char DATA_timeStr[6] = "TIME:";
+const char DATA_typeStr[6] = "TYPE:";
+const char DATA_favStr[2][21] = {"MAKE SURE THIS PATCH", "  HAS BEEN SAVED!   "};
+const char DATA_nts[12][4] = {"C  ", "C #", "D  ", "D #","E  ","F  ","F #", "G  ","G #", "A  ","A #", "B  "};
+const char DATA_units[3][3] = {"s", "Hz", "kH"};
+
+
+const char DATA_chan_pins[4][3] = {"A4", "A5", "A6", "A7"};
+const char DATA_mx_pins[5][3] = {"C0", "C1", "C2", "C3", "C4"};
+const char DATA_led_pins[4][3] = {"C5", "A0", "A1", "A2"};
+const char DATA_lower_knob_pins[2][3] = {"B6", "B7"};
+const char DATA_upper_knob_pins[2][3] = {"B0", "B1"};
+
+const uint8_t DATA_parents[OSC_CHILD_CNT] = {0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,2,3,4,5};
+const uint8_t DATA_firstChild[OSC_CNT] = {0,8,16,17,18,19};
+
+const int8_t BIG_GROUP[8][3] = {
+	{bitOsc, -1, 0},
+	{bitHarms, HARMONIC, EX_HARM},
+	{bitAEnv, AMPENV, 0},
+	{bitPEnv, PITENV, 0},
+	{bitFilt, FILTER, EX_FILT},
+	{bitFEnv, FILTENV, 0},
+	{bitArp, ARPEGSETUP, 0},
+	{bitMain, OUTS, 0}
+};
+
+const int8_t OTHER_GROUPS[24][4] = {
+	{E_OSC, bitMod, MODA, 0},									//lower mid row		
+	{E_OSC, bitWave, WAVETBL, EX_WAVE}, 			
+	{E_OSC, bitPoly, PITCH, EX_POLY}, 
+	{E_OSC, bitPhase, PHASE, EX_HARM}, 		
+	{E_OSC, bitNotes, NOTES, 0}, 
+	{E_OSC, bitEnvs, MIDIINS, 0}, 
+	{E_OSC, bitKeyVel, MIDICCS, 0}, 
+	{E_OSC, bitHold, -1, EX_HOLD1},	
+	
+	{MAINTOG, bitMidiThru, -1, 0}, 								//lower left row
+	{MAINTOG, bitSolo, -1, 0}, 
+	{E_OSC, bitPitRatio, PITRATIO, EX_PIT_RATIO}, //{MAINTOG, bitHoldAll, -1, EX_HOLD_ALL}, 
+	{MAINTOG, bitArpSync, -1, EX_SYNC},
+	{MAINTOG, bitDrum, ARPEGNOTES, EX_DRUM}, 	
+	{E_OSC, -1, -1, EX_ARPNOTREC}, 		
+				
+	{MAINTOG, bitRoute, -1, 0}, 	{MAINTOG, bitCopy, -1, 0}, 	//columns
+	{E_OSC, -1, -1, EX_PATSVLD}, 	{E_OSC, -1, -1, EX_PATRNDCLR}, 
+	{E_OSC, -1, FAVS, EX_FAV1},		{E_OSC, -1, FAVS, EX_FAV2},	
+	{E_OSC, -1, FAVS, EX_FAV3}, 	{E_OSC, -1, FAVS, EX_FAV4},		
+	{E_OSC, -1, -1, EX_TRIG_ON}, 	{E_OSC, -1, -1, EX_TRIG_OFF}
+};
+
+const uint32_t DATA_phase_width_incs[256][2] = {
 	{0, 4194304}, {536870912, 4227330}, {357913941, 4244039}, {268435456, 4260880}, 
  	{214748365, 4277856}, {178956971, 4294967}, {153391689, 4312216}, {134217728, 4329604}, 
  	{119304647, 4347133}, {107374182, 4364804}, {97612893, 4382620}, {89478485, 4400581}, 
@@ -90,7 +200,7 @@ const uint32_t data_phase_width_incs[256][2] = {
  	{4244039, 357913941}, {4227330, 536870912}, {4210752, 1073741824}, {4194304, 0}
 };
 
-const uint32_t data_PHASEINCS[257] = {
+const uint32_t DATA_PHASEINCS[257] = {
 	0x000005EA, 0x00000644, 0x000006A3, 0x00000708, 0x00000773, 0x000007E5, 0x0000085D, 
 	0x000008DC, 0x00000963, 0x000009F2, 0x00000A89, 0x00000B2A, 0x00000BD4, 0x00000C88, 
 	0x00000D46, 0x00000E10, 0x00000EE7, 0x00000FC9, 0x000010BA, 0x000011B8, 0x000012C6, 
@@ -133,7 +243,7 @@ const uint32_t data_PHASEINCS[257] = {
 
 
 
-const uint32_t data_ATTACK_K[128] = {
+const uint32_t DATA_ATTACK_K[128] = {
 	0x7FFFFFFF, 0x3CF3CF3C, 0x238E38E3, 0x19191918, 0x1364D936, 0x0F3CF3CF, 0x0C30C30C, 0x0A28A28A, 0x085DB308, 0x071C71C7, 0x0602675C, 
 	0x05145145, 0x045A8ECD, 0x03BE20EF, 0x0341CA95, 0x02D35AFC, 0x02775E36, 0x022A7338, 0x01E79E79, 0x01AFB9D8, 0x017DE952, 0x0154451E, 
 	0x013040A7, 0x01111111, 0x00F57403, 0x00DD8E1B, 0x00C86A78, 0x00B60B60, 0x00A57EB5, 0x0096DD95, 0x008A1639, 0x007E6B74, 0x007432D6, 
@@ -151,7 +261,7 @@ const uint32_t data_ATTACK_K[128] = {
 
 
 
-const uint32_t data_SEEK[128] =  {
+const uint32_t DATA_SEEK[128] =  {
 	0x73333332, 0x44967113, 0x28CB6BE5, 0x2003776F, 0x182CDD6C, 0x13697FF9, 0x1036D92A, 0x0D4AF0BA, 0x0B433A93, 0x0974F107, 0x07EE3E7E, 
 	0x06D41946, 0x05E0330D, 0x051152E0, 0x04637C9B, 0x03D1E3A9, 0x0357E0CB, 0x02F15674, 0x029ACAFB, 0x024CBFF9, 0x020B67A6, 0x01D43143, 
 	0x01A2D0A7, 0x0178F758, 0x01521D05, 0x013147E6, 0x01153CE7, 0x00FB602C, 0x00E53A73, 0x00D0EAE6, 0x00BF6D1C, 0x00AF67D2, 0x00A12AFA, 
@@ -167,7 +277,7 @@ const uint32_t data_SEEK[128] =  {
 };
 
 
-const uint32_t data_SEEK_S_RATE[128] = {
+const uint32_t DATA_SEEK_S_RATE[128] = {
 	0x112814BF, 0x09564743, 0x063269CE, 0x0485F7D1, 0x036DC84D, 0x02B85470, 0x022C9C4C, 0x01C24F31, 0x017137F8, 0x012ED490, 0x00FB3553, 
 	0x00D1D8E5, 0x00B02483, 0x00955CF5, 0x007F3422, 0x006CBA09, 0x005DCDB9, 0x0051344C, 0x0046BAD2, 0x003DD3CD, 0x00366895, 0x003008F8, 
 	0x002A9239, 0x0025EA82, 0x0021DC0F, 0x001E5EDC, 0x001B5780, 0x0018AE21, 0x00165775, 0x00144B31, 0x00127AFF, 0x0010DFA3, 0x000F7145, 
@@ -182,24 +292,38 @@ const uint32_t data_SEEK_S_RATE[128] = {
 	0x00002FE2, 0x00002E6D, 0x00002D0C, 0x00002BBF, 0x00002A83, 0x00002958, 0x00000000
 }; 
 
-const uint32_t data_GAIN[128] = {
-	0x00000000, 0x00078961, 0x000F12C2, 0x00169C23, 0x001E7967, 0x002656AB, 0x002E87D2, 0x0036B8F9, 0x003EEA20, 0x0047C30D, 0x00509BF9, 
-	0x005A1CAC, 0x00639D5E, 0x006DC5D6, 0x00784230, 0x0083126E, 0x008E8A71, 0x009A5657, 0x00A6CA03, 0x00B3E575, 0x00C154C9, 0x00CFBFC6, 
-	0x00DE7EA5, 0x00EE392E, 0x00FE9B7B, 0x010FA58F, 0x0121AB4B, 0x013458CD, 0x014801F7, 0x015CA6CA, 0x0171F362, 0x01883BA3, 0x019FD36F, 
-	0x01B81301, 0x01D1A21E, 0x01EC2CE4, 0x02080735, 0x0224DD2F, 0x0242AED1, 0x0261CFFE, 0x0282949A, 0x02A454DE, 0x02C764AD, 0x02EBC408, 
-	0x031172EF, 0x0338C543, 0x03616723, 0x038B588E, 0x03B6ED67, 0x03E425AE, 0x0412AD81, 0x04432CA5, 0x0474FB54, 0x04A86D71, 0x04DDD6E0, 
-	0x0514E3BC, 0x054D9407, 0x05883BA3, 0x05C486AD, 0x0602C908, 0x064302B4, 0x0684DFCE, 0x06C9081C, 0x070ED3D8, 0x0756EAC8, 0x07A0F909, 
-	0x07ECFE9B, 0x083B4F61, 0x088B9778, 0x08DE2AC3, 0x0932B55E, 0x0989DF11, 0x09E30014, 0x0A3E6C4C, 0x0A9C779A, 0x0AFCCE1C, 0x0B5F6FD2, 
-	0x0BC45CBB, 0x0C2BE8BB, 0x0C9667B5, 0x0D057D17, 0x0D7A786C, 0x0DF6A93F, 0x0E7B0B38, 0x0F09E98D, 0x0FA3981F, 0x104A0E40, 0x10FEEF5E, 
-	0x11C2E33E, 0x1297E132, 0x137EE4E2, 0x147991BC, 0x1588E368, 0x16AED139, 0x17EC56D5, 0x194317AC, 0x1AB40F66, 0x1C40E171, 0x1DEADD58, 
-	0x1FB3A68A, 0x219C38B0, 0x23A63736, 0x25D29DC6, 0x282363B2, 0x2A9984A0, 0x2D35FC3A, 0x2FF822BB, 0x32DE54B4, 0x35E69AD3, 0x390F51AC, 
-	0x3C56D5CF, 0x3FBB2FEB, 0x433B1076, 0x46D4801E, 0x4A862F58, 0x4E4DD2F1, 0x5229C779, 0x5618BD65, 0x5A18BD65, 0x5E28240A, 0x62454DE7, 
-	0x666E43A9, 0x6AA1B5C6, 0x6EDD590B, 0x732031CD, 0x7767F4DA, 0x7BB2FEC4, 0x7FFFFFFF
-};
+// const uint32_t DATA_GAIN[128] = {
+	// 0x00000000, 0x00078961, 0x000F12C2, 0x00169C23, 0x001E7967, 0x002656AB, 0x002E87D2, 0x0036B8F9, 0x003EEA20, 0x0047C30D, 0x00509BF9, 
+	// 0x005A1CAC, 0x00639D5E, 0x006DC5D6, 0x00784230, 0x0083126E, 0x008E8A71, 0x009A5657, 0x00A6CA03, 0x00B3E575, 0x00C154C9, 0x00CFBFC6, 
+	// 0x00DE7EA5, 0x00EE392E, 0x00FE9B7B, 0x010FA58F, 0x0121AB4B, 0x013458CD, 0x014801F7, 0x015CA6CA, 0x0171F362, 0x01883BA3, 0x019FD36F, 
+	// 0x01B81301, 0x01D1A21E, 0x01EC2CE4, 0x02080735, 0x0224DD2F, 0x0242AED1, 0x0261CFFE, 0x0282949A, 0x02A454DE, 0x02C764AD, 0x02EBC408, 
+	// 0x031172EF, 0x0338C543, 0x03616723, 0x038B588E, 0x03B6ED67, 0x03E425AE, 0x0412AD81, 0x04432CA5, 0x0474FB54, 0x04A86D71, 0x04DDD6E0, 
+	// 0x0514E3BC, 0x054D9407, 0x05883BA3, 0x05C486AD, 0x0602C908, 0x064302B4, 0x0684DFCE, 0x06C9081C, 0x070ED3D8, 0x0756EAC8, 0x07A0F909, 
+	// 0x07ECFE9B, 0x083B4F61, 0x088B9778, 0x08DE2AC3, 0x0932B55E, 0x0989DF11, 0x09E30014, 0x0A3E6C4C, 0x0A9C779A, 0x0AFCCE1C, 0x0B5F6FD2, 
+	// 0x0BC45CBB, 0x0C2BE8BB, 0x0C9667B5, 0x0D057D17, 0x0D7A786C, 0x0DF6A93F, 0x0E7B0B38, 0x0F09E98D, 0x0FA3981F, 0x104A0E40, 0x10FEEF5E, 
+	// 0x11C2E33E, 0x1297E132, 0x137EE4E2, 0x147991BC, 0x1588E368, 0x16AED139, 0x17EC56D5, 0x194317AC, 0x1AB40F66, 0x1C40E171, 0x1DEADD58, 
+	// 0x1FB3A68A, 0x219C38B0, 0x23A63736, 0x25D29DC6, 0x282363B2, 0x2A9984A0, 0x2D35FC3A, 0x2FF822BB, 0x32DE54B4, 0x35E69AD3, 0x390F51AC, 
+	// 0x3C56D5CF, 0x3FBB2FEB, 0x433B1076, 0x46D4801E, 0x4A862F58, 0x4E4DD2F1, 0x5229C779, 0x5618BD65, 0x5A18BD65, 0x5E28240A, 0x62454DE7, 
+	// 0x666E43A9, 0x6AA1B5C6, 0x6EDD590B, 0x732031CD, 0x7767F4DA, 0x7BB2FEC4, 0x7FFFFFFF
+// };
  
+const uint32_t DATA_GAIN[128] = {
+	0x00000000, 0x00000863, 0x0000218D, 0x00007570, 0x0000FBA8, 0x0001DE26, 0x0003254E, 0x0004EA4A, 0x00073DE1, 0x000A393E, 0x000DE4C5, 
+	0x0012599E, 0x0017A893, 0x001DEACC, 0x00253975, 0x002D948D, 0x00372606, 0x0041EDE1, 0x004E0DAA, 0x005B8DC5, 0x006A8FC0, 0x007B1C00, 
+	0x008D4BAD, 0x00A12F90, 0x00B6E0D2, 0x00CE67D7, 0x00E7DDCA, 0x01035BD5, 0x0120EA5B, 0x0140AAEA, 0x0162A5E7, 0x0186F47B, 0x01ADA76D, 
+	0x01D6CF85, 0x020285EC, 0x0230E3CD, 0x0261E929, 0x0295BFF0, 0x02CC7086, 0x03060BB2, 0x0342AA9F, 0x03826677, 0x03C53F39, 0x040B5ED8, 
+	0x0454CDB7, 0x04A19C9D, 0x04F1E4B4, 0x0545B6C3, 0x059D2BF5, 0x05F85510, 0x065742DC, 0x06BA0620, 0x0720B806, 0x078B71B8, 0x07FA3B9A, 
+	0x086D2673, 0x08E45C35, 0x095FD47B, 0x09DFB938, 0x0A640A6B, 0x0AECF206, 0x0B7A7008, 0x0C0C9D9D, 0x0CA393EE, 0x0D3F63C3, 0x0DE01DE2, 
+	0x0E85DB76, 0x0F30AD46, 0x0FE09BB6, 0x1095D0B7, 0x11504C48, 0x12102FF8, 0x12D5842B, 0x13A0620A, 0x1470FBEB, 0x15489092, 0x16291750, 
+	0x17148FD9, 0x180CF17F, 0x19143393, 0x1A2C2374, 0x1B551505, 0x1C8EA39C, 0x1DD872F3, 0x1F322F26, 0x209B738E, 0x2213E3E2, 0x239B23DD, 
+	0x2530DF9B, 0x26D4B274, 0x28864020, 0x2A452C59, 0x2C111ADA, 0x2DE9AF5B, 0x2FCE95FA, 0x31BF61A9, 0x33BBBE87, 0x35C3504B, 0x37D5BAB1, 
+	0x39F2A172, 0x3C19A847, 0x3E4A72EA, 0x40849CB1, 0x42C7D1BA, 0x4513B5BE, 0x4767EC77, 0x49C4113B, 0x4C27D028, 0x4E92CCF6, 0x5104A2FC, 
+	0x537CF5F4, 0x55FB71FB, 0x587FBACA, 0x5B096BB8, 0x5D9830E3, 0x602BA59F, 0x62C36DA7, 0x655F2CB5, 0x67FE8EE5, 0x6AA12F8F, 0x6D46BACE, 
+	0x6FEECBFA, 0x7298FE68, 0x75450699, 0x77F27FE3, 0x7AA11664, 0x7D505D0E, 0x7FFFFFFF
+};
 
 
-// const uint32_t data_VELGAIN[128] = {
+// const uint32_t DATA_VELGAIN[128] = {
 	// 0x00000000, 0x00049667, 0x0008D8EC, 0x000D6F54, 0x001205BC, 0x0016F006, 0x001BDA51, 0x0021187E, 0x0026AA8E, 0x002C3C9E, 0x00327674, 
 	// 0x0039042D, 0x003F91E6, 0x00471B47, 0x004EA4A8, 0x0056D5CF, 0x005FAEBC, 0x0068DB8B, 0x00730403, 0x007D805E, 0x0088F861, 0x0094C447, 
 	// 0x00A18BD6, 0x00AEFB2A, 0x00BD6627, 0x00CCCCCC, 0x00DCDB37, 0x00EDE54B, 0x00FFEB07, 0x0112EC6B, 0x0126E978, 0x013C3611, 0x01527E52, 
@@ -214,7 +338,7 @@ const uint32_t data_GAIN[128] = {
 	// 0x650624DC, 0x696D5CF9, 0x6DE15CA5, 0x725FD8AC, 0x76E631F7, 0x7B71C970, 0x7FFFFFFF
 // }; 
 
-const uint32_t data_VELGAIN[128] = {
+const uint32_t DATA_VELGAIN[128] = {
 	0x00000000, 0x002F8BDE, 0x005F4A12, 0x008F5C28, 0x00BFFCDA, 0x00F14552, 0x012378AB, 0x0156B00F, 0x018B1DD5, 0x01C0F451, 0x01F85D74, 
 	0x0231832F, 0x026C8F75, 0x02A9BCFD, 0x02E924F2, 0x032B020C, 0x036F7E3D, 0x03B6C376, 0x0400FBA8, 0x044E5929, 0x049F0E4D, 0x04F3343F, 
 	0x054B0E1B, 0x05A6B50B, 0x060663C7, 0x066A3BDD, 0x06D26FA3, 0x073F316E, 0x07B0AB2E, 0x0826FE71, 0x08A265F0, 0x0923033A, 0x09A908A2, 
@@ -229,7 +353,7 @@ const uint32_t data_VELGAIN[128] = {
 	0x76664D3B, 0x77FF5839, 0x7998B71A, 0x7B3250B4, 0x7CCC1CA2, 0x7E660A1F, 0x7FFFFFFF
 };
 
-const uint16_t data_TIME[128] = {
+const uint16_t DATA_TIME[128] = {
 	0x0000, 0x0004, 0x0006, 0x0008, 0x000B, 0x000D, 0x0010, 0x0013, 0x0016, 0x001A, 0x001E, 
 	0x0023, 0x0029, 0x002F, 0x0035, 0x003D, 0x0046, 0x004F, 0x0059, 0x0064, 0x0071, 0x007E, 
 	0x008D, 0x009C, 0x00AE, 0x00C0, 0x00D3, 0x00E9, 0x00FF, 0x0117, 0x0131, 0x014D, 0x016A, 
@@ -244,7 +368,7 @@ const uint16_t data_TIME[128] = {
 	0x63C2, 0x66A4, 0x6989, 0x6C70, 0x6F5A, 0x7244, 0x7530
 }; 
 
-const char data_noteLabels[169][5] = {
+const char DATA_noteLabels[169][5] = {
 	"118", "112", "105", "99.4", "93.8", "88.6", "83.6", "78.9", "74.5", 
 	"70.3", "66.3", "62.6", "59.1", "55.8", "52.7", "49.7", "46.9", "44.3", 
 	"41.8", "39.5", "37.2", "35.1", "33.2", "31.3", "29.6", "27.9", "26.3", 
@@ -266,7 +390,7 @@ const char data_noteLabels[169][5] = {
 	"15.8", "16.7", "17.7", "18.8", "19.9", "21.1", "22.4"
 };
 
-const char data_screens[SCREEN_CNT][4][21] = {
+const char DATA_screens[SCREEN_CNT][4][21] = {
 	{
 		"@@@@@@@@@ @@@@@@@@@ ",
 		"@@@@@@@@@>@@@@@@@@@<",
@@ -315,7 +439,7 @@ const char data_screens[SCREEN_CNT][4][21] = {
 		"@@@@@@@@@ @@@@@@@@@ "
 	},
 	{
-		" DIR: @@@@@@@@@     ",
+		" DIR: @@@@@@@@@ *CLR",
 		" EDIT *a>A     MOVE ",
 		"  NAME:@@@@@@ *SAVE "
 	},
@@ -363,15 +487,20 @@ const char data_screens[SCREEN_CNT][4][21] = {
 		"PRE-HARM  POST-HARM ",
 		" TOG:@@@   TOG:@@@  ",
 		" @@@@@@    @@@@@@   "
+	},
+	{
+		"(SELF)      @@@@    ",
+		" @@@   TO   @@@     ",
+		"FINE:@@@    *PITMOD "
 	}
 
 };
 
-const char data_SCREENS[SCREEN_CNT][9] = {
+const char DATA_SCREENS[SCREEN_CNT][9] = {
 	"WAV TABL", " AMP ENV", " PIT/VEL", " PIT ENV", "  FILTER", "FILT ENV", 
 	"ARP INIT", "ARPSTEPS", "PATCH LD", "PATCH SV", "MIDI INS", "MIDI CCS", 
 	"  OUTPUT", "MOD SRCS", "  NOTES ", " ARP REC", "FAVORITE", "HARMONIC",
-	"   PHASE"
+	"   PHASE", "PIT RTIO"
 };
 
 #endif
@@ -398,6 +527,34 @@ uint32_t __attribute__( ( always_inline ) ) getPhaseInc(uint32_t pitch)
 		return inc;
 	}
 	//return 0x012C5F93;
+}
+
+uint32_t __attribute__( ( always_inline ) ) getPitch(uint32_t goalPhase)
+{
+	uint32_t p_ind = 0;
+	int32_t cnt = 0;
+	while(p_ind < 256)
+	{
+		if((PHASEINCS[p_ind + 1] >> 1) > goalPhase)
+		{
+			break;
+		}
+		if(++p_ind > 255)
+		{
+			return (255 << PITCH_COARSE) + (63 << PITCH_FINE);
+		}
+	}
+	p_ind <<= PITCH_COARSE;
+	while(getPhaseInc(p_ind) < goalPhase)
+	{
+		p_ind += 1 << PITCH_FINE;
+		++cnt;
+	}
+	if(p_ind == 0)
+	{
+		p_ind = PHASEINCS[0] >> 1;
+	}
+	return p_ind;
 }
 
 #endif 

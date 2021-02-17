@@ -100,6 +100,7 @@
 				handleKnobs();
 				checkFileQueue(); 
 				checkHarmQueue(); 
+				updatePitRatio();
 				checkWriteElem(); 
 				
 				//memset(audioSrc, NULL, sizeof(audioSrc));
@@ -404,7 +405,6 @@
 						
 						//check timing for stage increment trigger
 						if(++(curEnv->clock) >= curKnobs->T + (modMask[osc] & (*(modSrc[ARPTIME_MOD][child])>>18)))
-						//if(++(curEnv->clock) >= curKnobs->T)
 						{
 							tStage = indexIncrement(tStage, 1, curKnobs->steps);
 							curEnv->stage = tStage;
@@ -571,17 +571,17 @@
 		int32_t out = 0;
 
 		//get the waveform/noise value	
-		for(uint8_t parent = 0; parent < OSC_CNT; parent++)
+		for(uint8_t parent = 0; parent < OSC_CNT; ++parent)
 		{
-			uint8_t first = firstChild[parent];
-			uint8_t last = ((parent < POLY_CNT)? NOTES_CNT: 1) + first;
+			const uint8_t first = firstChild[parent];
+			const uint8_t last = ((parent < POLY_CNT)? NOTES_CNT: 1) + first;
 			
 			
 			if(sWaveMask[parent])
 			{
 				if(isAudio[parent])
 				{
-					for(uint8_t child = first; child < last; child++)
+					for(uint8_t child = first; child < last; ++child)
 					{
 						wavSignal[child] = *(audioSrc[child]);
 					}
@@ -589,9 +589,9 @@
 				else
 				{
 					
-					for(uint8_t child = first; child < last; child++)
+					for(uint8_t child = first; child < last; ++child)
 					{
-						phase[child] += phaseInc[child] + (modMask[parent] & (*(modSrc[PIT_MOD][child])>>2));
+						phase[child] += phaseInc[child] + (modMask[parent] & (*(modSrc[PIT_MOD][child])>>1));
 						int32_t wavInd = (phase[child])>>WAVE_SHIFT;
 						int32_t amp1 = curWave[parent][wavInd];
 						int32_t amp2 = curWave[parent][(wavInd+1) & 0x1FF];
@@ -604,7 +604,7 @@
 			}
 			else
 			{
-				for(uint8_t child = first; child < last; child++)
+				for(uint8_t child = first; child < last; ++child)
 				{
 					wavSignal[child] = (int32_t)(GenerateRandomNumber());
 				}
@@ -615,34 +615,43 @@
 
 		
 		//get the overall gain value (and smooth it)
-		{
+		// {
 
-			for(uint8_t child = 0; child < OSC_CHILD_CNT; child++)
-			{
-				sGain[child] += ___SMMUL(kG[child] - sGain[child], sSEEK[child]);
-				wavSignal[child] = ___SMMUL(wavSignal[child], sGain[child]);
+			// for(uint8_t child = 0; child < OSC_CHILD_CNT; child++)
+			// {
+				// sGain[child] += ___SMMUL(kG[child] - sGain[child], sSEEK[child]);
+				// wavSignal[child] = ___SMMUL(wavSignal[child], sGain[child]);
 
-			}
-		}
+			// }
+		// }
 
 		
 		//filters	
-		for(uint8_t child = 0; child < OSC_CHILD_CNT; child++)
 		{
-			
-			int32_t *curSamps = &samps[child][0];
-			biquad_coefficients *curCoeff = &filt_coeff[child];
-			int32_t filtered = ___SMMUL(curCoeff->cxn_0, wavSignal[child]);
-			filtered = ___SMMLA(curCoeff->cxn_1, *curSamps, filtered);
-			filtered = ___SMMLA(curCoeff->cxn_2,  *(curSamps + 1), filtered);
-			filtered = ___SMMLS(curCoeff->cyn_1,  *(curSamps + 2), filtered);
-			filtered = ___SMMLS(curCoeff->cyn_2,  *(curSamps + 3), filtered)<<4;
+			biquad_coefficients *curCoeff = &filt_coeff[0];
+			for(uint8_t child = 0; child < OSC_CHILD_CNT; ++child)
+			{
+				// sGain[child] += ___SMMUL(kG[child] - sGain[child], sSEEK[child]);
+				// wavSignal[child] = ___SMMUL(wavSignal[child], sGain[child]);
+				wavSignal[child] >>= 3;
+				int32_t *curSamps = &samps[child][0];
+				
+				int32_t filtered = ___SMMUL(curCoeff->cxn_0, wavSignal[child]);
+				filtered = ___SMMLA(curCoeff->cxn_1, *curSamps, filtered);
+				filtered = ___SMMLA(curCoeff->cxn_2,  *(curSamps + 1), filtered);
+				filtered = ___SMMLS(curCoeff->cyn_1,  *(curSamps + 2), filtered);
+				filtered = ___SMMLS(curCoeff->cyn_2,  *(curSamps + 3), filtered)<<4;
 
-			*(curSamps + 3) =  *(curSamps + 2);
-			*(curSamps + 2) = filtered;
-			*(curSamps + 1) =  *curSamps;
-			*curSamps = wavSignal[child];
-			lastSignal[child] = filtered;
+				*(curSamps + 3) =  *(curSamps + 2);
+				*(curSamps + 2) = filtered;
+				*(curSamps + 1) =  *curSamps;
+				*curSamps = wavSignal[child];
+				
+				sGain[child] += ___SMMUL(kG[child] - sGain[child], sSEEK[child]);
+				filtered = ___SMMUL(filtered, sGain[child]) << 3;
+				lastSignal[child] = filtered;
+				++curCoeff;
+			}
 		}
 		
 
@@ -652,12 +661,12 @@
 		lastMain = 0;
 	
 		uint8_t first = 0;
-		for(uint8_t parent = 0; parent < POLY_CNT; parent++)
+		for(uint8_t parent = 0; parent < POLY_CNT; ++parent)
 		{	
 			
-			uint8_t last = first + NOTES_CNT;
+			const uint8_t last = first + NOTES_CNT;
 			int32_t combo = 0;
-			for(uint8_t child = first; child < last; child++)
+			for(uint8_t child = first; child < last; ++child)
 			{
 				combo += lastSignal[child];
 			}
@@ -675,7 +684,7 @@
 		}
 		
 		first -= POLY_CNT;
-		for(uint8_t parent = POLY_CNT; parent < OSC_CNT; parent++)
+		for(uint8_t parent = POLY_CNT; parent < OSC_CNT; ++parent)
 		{	
 			lastMain += lastSignal[parent + first];
 			int32_t sig = ___SMMUL(kMain[parent], lastSignal[parent + first])<<1;
