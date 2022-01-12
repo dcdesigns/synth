@@ -47,6 +47,7 @@ struct ARP_KNOBS {
 	int8_t P[MAXARP];
 	uint8_t V[MAXARP];
 	int8_t E[MAXARP];
+	uint8_t time[MAXARP];
 		
 };
 

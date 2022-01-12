@@ -180,7 +180,7 @@ uint8_t nonFiltCnt; */
 
 
 
-const uint8_t ptrCnt = 21;
+const uint8_t ptrCnt = 22;
 
 void *varPtrs[ptrCnt]; 
 
@@ -189,7 +189,7 @@ const uint16_t ptrSizes[] = {
 	sizeof(toggles), sizeof(osc_gain), sizeof(panLeft), sizeof(midi_knobs),
 	sizeof(pit_knobs), sizeof(amp_env_knobs), sizeof(pit_env_knobs), sizeof(filt_env_knobs), 
 	sizeof(filt_knobs), sizeof(mod_src), sizeof(arpeggio), sizeof(harmParams),
-	sizeof(phase_knobs),
+	sizeof(phase_knobs), sizeof(pit_ratio),
 	sizeof(amp_env), sizeof(pit_env), sizeof(filt_env), sizeof(arp_env), 
 	sizeof(vel), sizeof(note), sizeof(monoPitch), sizeof(monoVel)
 	
@@ -199,21 +199,21 @@ const uint8_t ptrSingleSizes[] = {
 	sizeof(toggles[0]), sizeof(osc_gain[0]), sizeof(panLeft[0]), sizeof(midi_knobs[0]),
 	sizeof(pit_knobs[0]), sizeof(amp_env_knobs[0]), sizeof(pit_env_knobs[0]), sizeof(filt_env_knobs[0]), 
 	sizeof(filt_knobs[0]), sizeof(mod_src[0]), sizeof(arpeggio[0]), sizeof(harmParams[0]),
-	sizeof(phase_knobs[0]),
+	sizeof(phase_knobs[0]), sizeof(pit_ratio[0]),
 	sizeof(amp_env[0]), sizeof(pit_env[0]), sizeof(filt_env[0]), sizeof(arp_env[0]), 
 	sizeof(vel[0]), sizeof(note[0]), sizeof(monoPitch[0]), sizeof(monoVel[0])
 	
 };
 
-const uint8_t resetCnt = 17;
-const uint8_t settingsCnt = 13;
-const uint8_t copyStop = 19;
+const uint8_t resetCnt = 18;
+const uint8_t settingsCnt = 14;
+const uint8_t copyStop = 20;
 const uint8_t resetVals[] = {
 	0,0,64,0,
 	0,50,0,0,
 	0,0,0,0,
 	0,0,0,0,
-	0
+	0,0
 };
 	
 

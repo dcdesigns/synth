@@ -78,7 +78,7 @@ void initSynthStuff()
 		toggles, osc_gain, panLeft, midi_knobs,
 		pit_knobs, amp_env_knobs, pit_env_knobs, filt_env_knobs, 
 		filt_knobs, mod_src, arpeggio, harmParams,
-		phase_knobs,
+		phase_knobs, pit_ratio,
 		amp_env, pit_env, filt_env, arp_env, 
 		vel, note, monoPitch, monoVel 
 	};
@@ -172,6 +172,7 @@ void __attribute__(( noinline )) initPatch(uint8_t first, uint8_t last)
 	memset(&HARM_update[first], -1, last-first + 1);
 
 	toggleSelected(oscInd);
+	updateLCDelems(OBJ1, OBJ6);
 	updateLEDs();
 };
 
@@ -242,7 +243,7 @@ void __attribute__(( noinline )) resetPatch()
 		midi_knobs[i].CC_nums[WND_EVENT] = 11;
 		midi_knobs[i].CC_nums[MW_EVENT] = 74;
 		
-		harmParams[i].gainFund = 110;
+		harmParams[i].gainFund = 127;
 		harmParams[i].gainFirst = 90;
 		harmParams[i].gainLast = 20;
 		harmParams[i].first = 2;
