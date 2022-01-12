@@ -58,7 +58,7 @@ static const uint8_t MAXFNAMELEN =(6 + 1);
 #define ROOT_FOLDER "/POLYSYN"
 #define WAVE_FOLDER "WAVE"
 #define VOICE_FOLDER "VOICE"
-#define PATCH_FOLDER "PATCH2"
+#define PATCH_FOLDER "PATCH"
 #define FAVS_FILE "FAVS"
 #define FILES_LIST "FILS-"
 #define DIRS_LIST "DIRS-"
