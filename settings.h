@@ -1,6 +1,10 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
+#include <stdint.h>
+
+#define SLEEP_MICROS (100)
+
 #define MAX_INT32 0x7FFFFFFF
 //midi settings
 #define MIDI_QUEUE_SIZE 8
@@ -14,48 +18,58 @@
 #define NOTEOFF 128
 #define RELEASE_OFFSET 1000
 #define DRONE_VEL 100
-#define ALL_SLOTS 9
+#define ALL_SLOTS (OSC_CHILD_CNT)
 
-#define LOADTABLES (0)
+#define LOADTABLES (1)
 
 //number of voices/polyphony
-#define NOTES_CNT 8
-#define POLY_CNT 2
-#define MONO_CNT 4
+#define NOTES_CNT (8)
+#define POLY_CNT (2)
+#define MONO_CNT (4)
+#define TABLE_CNT (4)
 //static const uint8_t NOISE_OSC = (POLY_CNT + 20);
-static const uint8_t OSC_CNT =( POLY_CNT + MONO_CNT);
-static const uint8_t MAINTOG = OSC_CNT;
-static const uint8_t E_OSC = MAINTOG + 1;
-static const uint8_t POLY_CHILD_CNT = (POLY_CNT * NOTES_CNT);
-static const uint8_t OSC_CHILD_CNT = (POLY_CHILD_CNT + MONO_CNT);
-#define MAXARP 64
+#define OSC_CNT (POLY_CNT + MONO_CNT)
+#define MAIN_FIL (OSC_CNT * TABLE_CNT)
+#define MAINTOG (OSC_CNT)
+#define E_OSC (MAINTOG + 1)
+#define POLY_CHILD_CNT (POLY_CNT * NOTES_CNT)
+#define OSC_CHILD_CNT (POLY_CHILD_CNT + MONO_CNT)
+#define MAXARP (64)
 
 //pitch settings
-#define PITCH_COARSE 21
-#define PITCH_FINE_RES 6
-static const uint8_t PITCH_FINE = (PITCH_COARSE - PITCH_FINE_RES);
-static const uint8_t PITCH_SAT = (PITCH_COARSE + 8);
-const uint32_t PITCH_MASK = ((1<<PITCH_COARSE)-1);
-static const uint8_t PITCH_INTERP = (31 - PITCH_COARSE);
-const int32_t TRACK_OFFSET = (179<<PITCH_COARSE);
-#define graphShift 25
+#define PITCH_COARSE (21)
+#define PITCH_FINE_RES (6)
+#define PITCH_FINE (PITCH_COARSE - PITCH_FINE_RES)
+#define PITCH_SAT (PITCH_COARSE + 8)
+#define PITCH_MASK ((1<<PITCH_COARSE)-1)
+#define PITCH_INTERP (31 - PITCH_COARSE)
+#define TRACK_OFFSET (179<<PITCH_COARSE)
+#define graphShift (25)
 //wav resolution
-#define WAVE_RES 512
-static const uint16_t WAVE_RES_MASK = WAVE_RES - 1;
-#define WAVE_BYTES 4
-#define WAVE_SHIFT 23
-static const uint32_t WAVE_MASK = (1<<WAVE_SHIFT)-1;
-static const uint8_t WAVE_INTERP = 31 - WAVE_SHIFT;
-static const uint16_t WAVE_READ_INC = (WAVE_RES * WAVE_BYTES) >> 4;
-static const uint8_t WAVE_IND_INC = WAVE_READ_INC >> 2;
-static const uint8_t WAVE_REPS = WAVE_RES/WAVE_IND_INC;
+#define WAVE_RES (512)
+#define WAVE_RES_MASK (WAVE_RES - 1)
+#define WAVE_BYTES (4)
+#define WAVE_SHIFT (23)
+#define WAVE_MASK ((1<<WAVE_SHIFT)-1)
+#define WAVE_INTERP (31 - WAVE_SHIFT)
+//#define WAVE_READ_INC ((WAVE_RES * WAVE_BYTES) >> 4)
+//#define WAVE_IND_INC (WAVE_READ_INC >> 2)
+//#define WAVE_REPS (WAVE_RES/WAVE_IND_INC)
 
-const char def_wave[] = "SIN";
+
+
+#define TBL_MAX (MAX_INT32 >> 2)
+#define TBL_INC (TBL_MAX >> 7)
+#define TBL_SHIFT (22)
+#define TBL_SAT (29)
+#define TBL_LCD_SHIFT (TBL_SHIFT - 3)
+#define TBL_RENDER_SHIFT (5)
+
 
 //string settings for files
-static const uint8_t MAXFNAMELEN =(6 + 1);
+#define MAXFNAMELEN (6 + 1)
 #define MAXDPATHLEN 50
-#define ROOT_FOLDER "/POLYSYN"
+#define ROOT_FOLDER "/mnt/SD/POLYSYN"
 #define WAVE_FOLDER "WAVE"
 #define VOICE_FOLDER "VOICE"
 #define PATCH_FOLDER "PATCH"
@@ -64,6 +78,7 @@ static const uint8_t MAXFNAMELEN =(6 + 1);
 #define DIRS_LIST "DIRS-"
 #define MAXFILES 256 //if you ever increase this, indexes need to be switched to uint16_t
 #define MAXDIRS 50
+const char def_wave[4][MAXFNAMELEN] = { "SIN", "TRI", "SQU", "SAW_DN" };
 
 //file browser indexes
 #define FILTYPES 2
@@ -105,31 +120,33 @@ static const uint8_t MAXFNAMELEN =(6 + 1);
 #define OBJ4 6
 #define OBJ5 7
 #define OBJ6 8
-static const uint8_t LCDelems = OBJ6 + 1;
+#define LCDelems (OBJ6 + 1)
 
 
 //screen indexes
 #define WAVETBL 0
-#define AMPENV 1
-#define PITCH 2
-#define PITENV 3
-#define FILTER 4
-#define FILTENV 5
-#define ARPEGSETUP 6
-#define ARPEGNOTES 7
-#define PATCHLD 8
-#define PATCHSV 9
-#define MIDIINS 10
-#define MIDICCS 11
-#define OUTS 12
-#define MODA 13
-#define NOTES 14
-#define ARPREC 15
-#define FAVS 16
-#define HARMONIC 17
-#define PHASE 18
-#define PITRATIO 19
-#define SCREEN_CNT 20
+#define TBLPOS 1
+#define AMPENV 2
+#define PITCH 3
+#define DUALENV1 4
+#define FILTER 5
+#define DUALENV2 6
+#define ARPEGSETUP 7
+#define ARPEGNOTES 8
+#define PATCHLD 9
+#define PATCHSV 10
+#define MIDIINS 11
+#define MIDICCS 12
+#define OUTS 13
+#define MODA 14
+#define NOTES 15
+#define ARPREC 16
+#define FAVS 17
+#define HARMONIC 18
+#define PHASE 19
+#define PITRATIO 20
+#define SCREEN_CNT 21
+#define ROW_CHAR_CNT (22)
 
 //status bits
 #define bitSolo 0
@@ -151,31 +168,28 @@ static const uint8_t LCDelems = OBJ6 + 1;
 #define INPUTS_CNT 16
 #define bitOsc 0 	
 #define bitWave 1 	
-#define bitAEnv 2 	
-#define bitPEnv 3 
-#define bitFilt 4 	
-#define bitFTrack 5	 
-#define bitFEnv 6 	
-#define bitFECut 7 
-#define bitArp 8 	
-#define bitArpFilt 9
-#define bitArpTrig 10 
-#define bitArpSkip 11 	
-//#define bitArpPitch 12 
-#define bitMod 13 		
-#define bitMain 14 		
-#define bitNotes 15 
-#define bitEnvs 16 	
-#define bitPoly 17 	
-#define bitLgto 18 
-#define bitHold 19	
-//#define bitWind 20
-#define bitKeyVel 21
-#define bitHarms 22
-#define bitPhase 23
-#define bitAudio 24
-//next four bits define audio index
-#define bitPitRatio 29
+#define bitAEnv 5 	
+#define bitPEnv 6 
+#define bitFilt 7 	
+#define bitFTrack 8	 
+#define bitFEnv 9 	
+#define bitFECut 10 
+#define bitArp 11 	
+#define bitArpFilt 12
+#define bitArpTrig 13 
+#define bitArpSkip 14 	
+#define bitMod 15 		
+#define bitMain 16 		
+#define bitNotes 17 
+#define bitEnvs 18 	
+#define bitPoly 19 	
+#define bitLgto 20 
+#define bitHold 21	
+#define bitKeyVel 22
+#define bitHarms 23
+#define bitPhase 27
+#define bitPitRatio 28
+#define bitPoly16 29
 	
 	
 #define EX_WAVE 1
@@ -200,13 +214,19 @@ static const uint8_t LCDelems = OBJ6 + 1;
 #define EX_HARM 20
 #define EX_COPY 21
 #define EX_PIT_RATIO 22
+#define EX_POLY16 23
 #define poopSize 501
 
-static const float incsBPM[4] = {.1, 1, 10, 100};
-static const uint8_t posBPM[4] = {5, 3, 2, 1};
-static const uint8_t charL[3] = {'A', '0', '!'};
-static const uint8_t charH[3] = {'Z', '9', ')'};
 
+enum ENV_ITEM {
+	e_TBLX = 0,
+	e_TBLY,
+	e_PIT,
+	e_FCUT,
+	e_FRES,
+	e_NONE,
+	e_ENV_MAX
+};
 
 //#define EX_AMP_SET 14
 
@@ -216,9 +236,9 @@ static const uint8_t charH[3] = {'Z', '9', ')'};
 	// {bitOsc, -1, 0},
 	// {bitHarms, HARMONIC, EX_HARM},
 	// {bitAEnv, AMPENV, 0},
-	// {bitPEnv, PITENV, 0},
+	// {bitPEnv, DUALENV1, 0},
 	// {bitFilt, FILTER, EX_FILT},
-	// {bitFEnv, FILTENV, 0},
+	// {bitFEnv, DUALENV2, 0},
 	// {bitArp, ARPEGSETUP, 0},
 	// {bitMain, OUTS, 0}
 // };
@@ -252,7 +272,7 @@ static const uint8_t charH[3] = {'Z', '9', ')'};
 
 	
 
-
+#define ptrCnt (23)
 
 
 //toggle stuff
@@ -299,21 +319,25 @@ static const uint8_t charH[3] = {'Z', '9', ')'};
 
 //modulation destinations
 #define CUR_MOD_CNT 4
-#define MOD_CNT 13
+#define MOD_CNT 16
 #define PIT_MOD 0
 #define CUT_MOD 1
 #define AMP_MOD 2
-#define RES_MOD 3
+#define TBL_X_MOD 3
 #define GATE_MOD 4
-#define ARPTIME_MOD 5
-#define PAN_MOD 6
-#define ATK_MOD 7
-#define DEC_MOD 8
-#define SUS_MOD 9
-#define REL_MOD 10
-#define PGLIDE_MOD 11
-#define VGLIDE_MOD 12
-#define ARPGLIDE_MOD 13
+#define TBL_Y_MOD 5
+#define RES_MOD 6
+#define ARPTIME_MOD 7
+#define PAN_MOD 8
+#define ATK_MOD 9
+#define DEC_MOD 10
+#define SUS_MOD 11
+#define REL_MOD 12
+#define PGLIDE_MOD 13
+#define VGLIDE_MOD 14
+#define ARPGLIDE_MOD 15
+
+
 
 
 
@@ -335,14 +359,11 @@ static const uint8_t charH[3] = {'Z', '9', ')'};
 #define FENV_SRC 7
 #define ARP_SRC 8
 
-static const uint32_t TOTAL_MOD_SRC =  ARP_SRC + 1;
-static const uint32_t TOTAL_MODS = (OSC_CNT * TOTAL_MOD_SRC + 5);
+#define TOTAL_MOD_SRC (ARP_SRC + 1)
+#define TOTAL_MODS (OSC_CNT * TOTAL_MOD_SRC + 2)
 #define MOD_NONE 0
 
-#define MOD_MAIN_OUT 	(TOTAL_MODS - 4)
-#define MOD_AUDIO_MX 	(TOTAL_MODS - 3)
-#define MOD_AUDIO_L 	(TOTAL_MODS - 2)
-#define MOD_AUDIO_R 	(TOTAL_MODS - 1)
+#define MOD_MAIN_OUT 	(TOTAL_MODS - 1)
 
 #define COPY_ALL 0
 #define COPY_PIT 1
@@ -354,6 +375,6 @@ static const uint32_t TOTAL_MODS = (OSC_CNT * TOTAL_MOD_SRC + 5);
 #define MUTE 2
 
 
-#include "./synthVariables.c"
+
 
 #endif 

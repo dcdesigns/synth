@@ -1,16 +1,194 @@
-#ifndef HELPERFUNCTIONS_C
-#define HELPERFUNCTIONS_C
 
-#include "./pitchTables.c"
-#include "./synthVariables.c"
+#include <string.h>
+#include <string>
+#include "pitchTables.h"
+#include "synthVariables.h"
+#include "helperFunctions.h"
 
 const float floatMults[9] = {10000,1000,100,10,1,.1,.01,.001,.0001};
 
-uint8_t __attribute__( ( noinline ) )  indexIncrement(uint8_t cur, int8_t inc, uint8_t cnt)
+
+__attribute__((always_inline)) int32_t ___SMMUL(int32_t op1, int32_t op2)
+{
+	int32_t result;
+
+	__asm__ __volatile__("smmul %0, %1, %2" : "=r" (result) : "r" (op1), "r" (op2));
+	return(result);
+}
+
+__attribute__((always_inline)) int32_t ___SMMLA(int32_t op1, int32_t op2, int32_t op3)
+{
+	int32_t result;
+
+	__asm__ __volatile__("smmla %0, %1, %2, %3" : "=r" (result) : "r" (op1), "r" (op2), "r" (op3));
+	return(result);
+}
+
+__attribute__((always_inline)) int32_t ___SMMLS(int32_t op1, int32_t op2, int32_t op3)
+{
+	int32_t result;
+
+	__asm__ __volatile__("smmls %0, %1, %2, %3" : "=r" (result) : "r" (op1), "r" (op2), "r" (op3));
+	return(result);
+}
+
+__attribute__((always_inline)) float q27_to_float(int32_t op1) {
+	float fop1 = *(float*)(&op1);
+	__asm__ __volatile__("VCVT.F32.S32 %0, %0, 27" : "+w" (fop1));
+	return(fop1);
+}
+
+__attribute__((always_inline)) float q31_to_float(int32_t op1) {
+	float fop1 = *(float*)(&op1);
+	__asm__ __volatile__("VCVT.F32.S32 %0, %0, 31" : "+w" (fop1));
+	return(fop1);
+}
+
+int32_t signed_rand()
+{
+	return (((int32_t)rand()) - (INT_MAX >> 1)) << 1;
+}
+uint32_t __USAT(int32_t val, int bits)
+{
+	uint32_t comp = (1 << bits) - 1;
+	return val < 0 ? 0 : val > comp ? comp : val;
+}
+
+uint32_t __USAT_add(uint32_t a, uint32_t b)
+{
+	uint32_t ret = a + b;
+	if (ret < a || ret < b)
+	{
+		ret = 0xFFFFFFFF;
+	}
+	return ret;
+}
+
+int32_t __USAT_add_signed(int32_t a, int32_t b, uint32_t saturate_bit)
+{
+	int32_t ret;
+	//both negative
+	if (a < 0 && b < 0)
+	{
+		ret = 0;
+	}
+	//one negative
+	else if (a < 0 || b < 0)
+	{
+		ret = a + b;
+		if (ret < 0) ret = 0;
+	}
+	//both positive or zero
+	else
+	{
+		uint32_t sum = (uint32_t)a + (uint32_t)b;
+		if (sum > MAX_INT32) ret = MAX_INT32;
+		else ret = sum;
+	}
+	
+	return __USAT(ret, saturate_bit);
+}
+
+uint32_t __USAT_add_unsigned_signed(uint32_t a, int32_t b)
+{
+	if (b < 0)
+	{
+		if (-b > a) return 0;
+		return a - b;
+	}
+	return __USAT_add(a, (uint32_t)b);
+}
+
+int32_t __SSAT(int32_t val, uint32_t bits)
+{
+	int32_t posMax, negMin;
+	uint32_t i;
+
+	posMax = 1;
+	for (i = 0; i < (bits - 1); i++)
+	{
+		posMax = posMax * 2;
+	}
+
+	if (val > 0)
+	{
+		posMax = (posMax - 1);
+
+		if (val > posMax)
+		{
+			val = posMax;
+		}
+	}
+	else
+	{
+		negMin = -posMax;
+
+		if (val < negMin)
+		{
+			val = negMin;
+		}
+	}
+	return (val);
+}
+
+int getOscTblInd(int32_t val, int32_t& osc, int32_t& table)
+{
+	if (val >= MAIN_FIL) return 0;
+	osc = val / TABLE_CNT;
+	table = val % TABLE_CNT;
+	return 1;
+}
+
+void queueOscTbl(uint32_t& queue, int32_t osc, int32_t table)
+{
+	if (table > -1) queue |= (1 << (osc * TABLE_CNT + table));
+	else queue |= (0xF << (osc * TABLE_CNT));
+}
+
+void memcpy_safe(uint8_t* dst, uint8_t* src, int32_t num_bytes)
+{
+	const int32_t MAX_BYTES = 256;
+
+	while (num_bytes > 0)
+	{
+		int32_t amt = num_bytes > MAX_BYTES ? MAX_BYTES : num_bytes;
+		memcpy(dst, src, amt);
+		num_bytes -= amt;
+		dst += amt;
+		src += amt;
+	}
+}
+
+//int32_t __SSAT(int32_t val, int bits)
+//{
+//	int32_t comp = (1 << bits) - 1;
+//	return val < 0 ? (val < -comp ? -comp : val) : (val > comp ? comp : val);
+//}
+
+int32_t unit_dir(int32_t inc)
+{
+	return inc > 0 ? 1 : inc < 0 ? -1 : 0;
+}
+
+int32_t ensure_not_self_ratio(int32_t inc)
+{
+	int32_t ret = 0;
+	if (pit_ratio[oscInd].src == oscInd)
+	{
+		inc = unit_dir(inc);
+		pit_ratio[oscInd].src = indexIncrement(pit_ratio[oscInd].src, inc, 6);
+		ret = 1;
+
+	}
+	LCD_update[OBJ2] = 1;
+	return ret;
+}
+
+uint8_t __attribute__( ( noinline ) )  indexIncrement(uint32_t cur, int32_t inc, uint32_t cnt)
 {
 	
-	int8_t tInd = cur + inc;
-	int8_t max = cnt -1;
+	int32_t tInd = cur + inc;
+	int32_t max = cnt -1;
 	if(tInd > max)
 		return 0;
 	else if(tInd < 0)
@@ -63,10 +241,6 @@ void __attribute__(( noinline )) incArpRecTime()
 	lastTime = ticks;
 }
 
-uint8_t childCnt(uint8_t osc)
-{
-	return (osc < POLY_CNT)? NOTES_CNT: 1;
-}
 
 
 
@@ -206,6 +380,12 @@ uint32_t  __attribute__(( noinline )) FULLMASK(uint8_t osc, uint8_t bit)
 {
 	return (MASK(osc, bit))? ~0: 0;
 }
+
+int32_t perTableTog(int32_t toggle)
+{
+	return (toggle == bitHarms || toggle == bitWave || toggle == bitPhase);
+}
+
 	
 
 /* int32_t BOUNDED_MOD(int32_t base, int32_t mod, int32_t max, int32_t min)
@@ -225,5 +405,32 @@ uint32_t  __attribute__(( noinline )) FULLMASK(uint8_t osc, uint8_t bit)
 }
  */
 
+void toggle_POLY16()
+{
+	int32_t on = SHIFTMASK(MAINTOG, bitPoly16);
+	rt_printf("poly 16: %d\n", on);
+	int32_t POLY2_LIMIT = NOTES_CNT << 1;
+	for (int32_t child = NOTES_CNT; child < POLY2_LIMIT; ++child)
+	{
+		parents[child] = on ? 0 : 1;
+	}
+	if (on)
+	{
+		childCnt[0] = POLY2_LIMIT;
+		childCnt[1] = 0;
+		untilChild[0] = POLY2_LIMIT;
+		untilChild[1] = 0;
+	}
+	else
+	{
+		childCnt[0] = NOTES_CNT;
+		childCnt[1] = NOTES_CNT;
+		untilChild[0] = NOTES_CNT;
+		untilChild[1] = POLY2_LIMIT;
+	}
+}
 
-#endif 
+int32_t note_slot_limit(int32_t osc)
+{
+	return (osc < POLY_CNT) ? childCnt[osc] : NOTES_CNT;
+}

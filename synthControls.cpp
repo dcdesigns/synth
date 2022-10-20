@@ -1,72 +1,205 @@
-#ifndef SYNTHCONTROLS_C
-#define SYNTHCONTROLS_C
 
 
-#include "./settings.h"
-#include "./helperfunctions.c"
-#include "./fileLoader.h"
-#include "./pitchTables.c"
-#include "./lcdLib.h"
-#include "./midiHandler.h"
+#include <string.h>
+#include "settings.h"
+#include "synthControls.h"
+#include "synthVariables.h"
+#include "helperFunctions.h"
+#include "fileLoader.h"
+#include "pitchTables.h"
+#include "lcdLib.h"
+#include "modules.h"
+#include "midiHandler.h"
 
 
-
-void __attribute__(( noinline )) get_port(const char* port_code, ioportid_t *port, uint32_t *pin)
+void  addToInputQueue(uint8_t group, uint8_t ind, int32_t val, uint8_t isQuick)
 {
-	switch(port_code[0])
-	{
-		case 'A':
-		case 'a':
-			*port = GPIOA;
-			break;
-		case 'B':
-		case 'b':
-			*port = GPIOB;
-			break;
-		case 'C':
-		case 'c':
-			*port = GPIOC;
-			break;
-			
-	}
+	if (group == 4 && ind > 7) ++group;
+	//rt_printf("input grp %d ind %d, val %d, isQuick %d\n", group, ind, val, isQuick);
+	static uint8_t writeInd = 0;
+	inputQueue[writeInd][0] = group;
+	inputQueue[writeInd][1] = ind;
+	inputQueue[writeInd][2] += val;
+	inputQueue[writeInd][3] = isQuick;
+	++writeInd &= 0x03;
+}
+
+
+int32_t checkSwitch(int group, int ind, int signal)
+{
+	static uint32_t timer[5] = { 0 };
+	static uint16_t held[5] = { 0 };
+	static uint16_t was[5] = { 0 };
+	static uint32_t initialized[5] = { 0 };
 	
-	*pin = uint32_t(port_code[1] - '0');
-}
+	int ret = 0;
 
-void __attribute__(( noinline )) setup_pin(const char *port_code, uint32_t is_input)
-{
-	ioportid_t port;
-	uint32_t pin;
-	get_port(port_code, &port, &pin);
-	
-	if(is_input)
+	if (!((initialized[group] >> ind) & 1))
 	{
-		palSetPadMode(port, pin, PAL_MODE_INPUT);
+		initialized[group] |= (1 << ind);
+		was[group] |= (1 << ind);
 	}
-	else
+	int prev = (was[group] >> ind) & 1;
+	if (prev != signal)
 	{
-		palSetPadMode(port, pin, PAL_MODE_OUTPUT_PUSHPULL);
-		palWritePad(port, pin, 0);
+		was[group] ^= (1 << ind);
+
+		if (!signal)
+		{
+			timer[group] = ticks;
+			held[group] &= ~(1 << ind);
+		}
+		else if (!((held[group] >> ind) & 1))
+		{
+			addToInputQueue(group, ind, 1, 1);
+			ret = 1;
+		}
+	}
+	else if (!signal && !((held[group] >> ind) & 1) && ticks - timer[group] > HOLD_TIME)
+	{
+		held[group] |= (1 << ind);
+		addToInputQueue(group, ind, 1, 0);
+		ret = 1;
+	}
+	return ret;
+}
+
+
+int32_t check_knob_turns(uint32_t knobInd, uint32_t a, uint32_t b)
+{
+	static uint8_t cnt[8] = { 0 };
+	static uint8_t A_seq[8] = { 0 };
+	static uint8_t B_seq[8] = { 0 };
+	static uint32_t initialized = 0;
+	static int32_t last_dir[8] = { 0 };
+	int32_t ret = 0;
+	static int32_t t_knob_state[8] = { 0 };
+	static int32_t t_elapsed[8] = { 0 };
+	static int32_t elapsed[8] = { 0 };
+
+	if (!((initialized >> knobInd) & 1))
+	{
+		initialized |= (1 << knobInd);
+		A_seq[knobInd] = a;
+		B_seq[knobInd] = b;
+		KNOB_TICKS[knobInd] = ticks;
+	}
+
+	uint32_t A_chg = a != (A_seq[knobInd] & 1);
+	uint32_t B_chg = b != (B_seq[knobInd] & 1);
+
+	//check for knob turns
+	if (A_chg || B_chg)
+	{
+		A_seq[knobInd] <<= 1;
+		A_seq[knobInd] |= a;
+		B_seq[knobInd] <<= 1;
+		B_seq[knobInd] |= b;
+
+		t_elapsed[knobInd] = ticks - KNOB_TICKS[knobInd];
+		int32_t dir = ((B_chg && b != a) || (A_chg && a == b)) ? -1 : 1;
+		if (t_elapsed[knobInd] > 2000)
+		{
+			dir = 0;
+			cnt[knobInd] = 0;
+		}
+		else if (dir != last_dir[knobInd] && t_elapsed[knobInd] < 16)
+		{
+			dir = last_dir[knobInd];
+		}
+		int32_t mult = 1;
+		if (t_elapsed[knobInd] < 100) mult <<= 1;
+		if (t_elapsed[knobInd] < 50) mult <<= 1;
+		if (t_elapsed[knobInd] < 20) mult <<= 1;
+		
+		
+		t_knob_state[knobInd] += dir * mult;
+		elapsed[knobInd] += t_elapsed[knobInd];
+		KNOB_TICKS[knobInd] = ticks;
+		last_dir[knobInd] = dir;
+		++cnt[knobInd];
+
+
+
+		if (A_chg && a && cnt[knobInd] >= 3)
+		{
+			mult = (t_knob_state[knobInd] > 1) ? 1 : (t_knob_state[knobInd] < 0) ? -1 : 0;
+
+			if (elapsed[knobInd] < 48) mult <<= 1;
+			if (elapsed[knobInd] < 100) mult <<= 1;
+			if (elapsed[knobInd] < 200) mult <<= 1;
+
+			addToInputQueue(KNOB_GRP, knobInd, mult, 0);
+			KNOB_TICKS[knobInd] = ticks;
+			last_dir[knobInd] = dir;
+			elapsed[knobInd] = 0;
+			t_knob_state[knobInd] = 0;
+			cnt[knobInd] = 0;
+
+			ret = 1;
+		}
+
+	}
+	return ret;
+}
+
+
+void scanInputs(BelaContext* context)
+{
+	static uint8_t ind = 0;
+	const float onLevel = 3.3 / 5.0;
+	const int32_t offset = context->analogFrames - 2;
+	const int32_t d_offset = context->digitalFrames - 2;
+	const float thresh = 0.2;
+	check_knob_turns((ind - 1) & 0x03, analogRead(context, offset, 0) > thresh, analogRead(context, offset, 1) > thresh);
+	check_knob_turns(((ind - 1) & 0x03) + 4, analogRead(context, offset, 2) > thresh, analogRead(context, offset, 3) > thresh);
+
+	for (int i = 0; i < 4; ++i)
+	{
+		joyVal[i] = 0.0f;
+		for (int j = 0; j < context->analogFrames; ++j)
+		{
+			joyVal[i] += analogRead(context, j, i + 4);
+		}
+		joyVal[i] /= float(context->analogFrames);
+	}
+
+	for (int i = 0; i < 5; ++i)
+	{
+		checkSwitch(i, (ind - 1) & 0xF, digitalRead(context, d_offset, i));
+	}
+
+	//increment channel
+	ind = (ind + 1) & 0x0F;
+
+
+	//set the channel for the next read
+	//set address pins
+	for (int channel = 4; channel < 8; channel++)
+	{
+		analogWrite(context, 0, channel, float((ind >> (channel - 4)) & 1) * onLevel);
+	}
+
+
+	//set led pins
+	for (int channel = 0; channel < 4; ++channel)
+	{
+		int on = (LED[channel] >> ind) & 1;
+		if (channel == blinkGrp && ind == blinkInd)
+		{
+			on = (ticks >> 10) & 1;
+		}
+		analogWrite(context, 0, channel, onLevel);
+		analogWrite(context, 2, channel, onLevel * float(on));
 	}
 }
 
-uint32_t __attribute__(( noinline )) read_pin(const char *port_code)
-{
-	ioportid_t port;
-	uint32_t pin;
-	get_port(port_code, &port, &pin);
-	return palReadPad(port, pin);
-}
 
-void __attribute__(( noinline )) write_pin(const char *port_code, uint32_t val)
-{
-	ioportid_t port;
-	uint32_t pin;
-	get_port(port_code, &port, &pin);
-	palWritePad(port, pin, val);
-}
+
+
+
 //runs once at startup
-void initSynthStuff()
+int initSynthStuff(BelaContext* context, void* userData)
 {	
 
 	#if LOADTABLES
@@ -74,7 +207,7 @@ void initSynthStuff()
 	#endif
 	read_data_arrays();
 	//get the pointers to the settings variables
-	void *ptrs[] = {
+	/*void *ptrs[] = {
 		toggles, osc_gain, panLeft, midi_knobs,
 		pit_knobs, amp_env_knobs, pit_env_knobs, filt_env_knobs, 
 		filt_knobs, mod_src, arpeggio, harmParams,
@@ -84,28 +217,30 @@ void initSynthStuff()
 	};
 	
 
-	memcpy(varPtrs, ptrs, sizeof(ptrs));
-	
-	for(int32_t i = 0; i < 5; ++i)
+	memcpy(varPtrs, ptrs, sizeof(ptrs));*/
+
+	for (int i = 0; i < 5; ++i)
 	{
-		if(i < 2)
-		{
-			setup_pin(lower_knob_pins[i], 1);
-			setup_pin(upper_knob_pins[i], 1);
-		}
-		if(i < 4)
-		{
-			setup_pin(chan_pins[i], 0);
-			setup_pin(led_pins[i], 0);
-		}
-		setup_pin(mx_pins[i], 1);
+		pinMode(context, 0, i, INPUT); //set input
 	}
+
+	//printf("analog frames %d\n", context->analogFrames);
+	// Check if analog channels are enabled
+	if (context->analogFrames == 0 || context->analogFrames > context->audioFrames) {
+		rt_printf("Error: this example needs analog enabled, with 4 or 8 channels\n");
+		return -1;
+	}
+
+	for (unsigned int channel = 0; channel < 4; channel++)
+	{
+		analogWrite(context, 0, channel, 0);
+	}
+
 	
 	//clear the note and cc events arrays
 	memset(&midiEvents, DEAD_MIDI_EVENT, sizeof(midiEvents));
 
 	//initialize buttons/knobs
-	memset(&MX, 255, sizeof(MX));
 	memset(&LED, 0, sizeof(LED));
 	memset(&KNOB_A, 3, sizeof(KNOB_A));
 	memset(&KNOB_DIR, 0, sizeof(KNOB_DIR));
@@ -156,31 +291,35 @@ void initSynthStuff()
 	drumPage = 0;
 	
 	main_gain = 127;
+	
 	initOscMidi(0, OSC_CNT -1);
+	return 0;
 	
 }	
 
 
 	
 //runs when a patch is loaded/reset/randomized	
-void __attribute__(( noinline )) initPatch(uint8_t first, uint8_t last)
+void initPatch(uint8_t first, uint8_t last)
 {
 	resetArpPages(first, last);
 	updateAllMod(first, last);
 
-	memset(&FIL_update[first], 1, last-first + 1);
-	memset(&HARM_update[first], -1, last-first + 1);
+	FIL_update = ~0;
+	FIL_update &= ~(1 << MAIN_FIL);
 
 	toggleSelected(oscInd);
 	updateLCDelems(OBJ1, OBJ6);
 	updateLEDs();
+
+	memset(lastPhaseName, 0, MAXFNAMELEN);
 };
 
 //uint8_t onTogs[3] = {bitArpTrig, bitFTrack, bitFECut};
 
 
 //clear patch to default settings
-void __attribute__(( noinline )) resetPatch()
+void resetPatch()
 {
 	uint32_t midiThru = SHIFTMASK(MAINTOG, bitMidiThru);
 	
@@ -197,7 +336,7 @@ void __attribute__(( noinline )) resetPatch()
 		}
 	}
 	
-	uint8_t resetTogs[7] = {bitOsc, bitMain, bitNotes, bitEnvs, bitAEnv, bitWave, bitPoly};
+	uint8_t resetTogs[11] = {bitOsc, bitMain, bitNotes, bitEnvs, bitAEnv, bitWave, bitWave + 1, bitWave + 2, bitWave + 3, bitPoly, bitKeyVel};
 	SETBITS(0, resetTogs, sizeof(resetTogs));
 	SETBIT(1, bitPoly);	
 
@@ -225,7 +364,17 @@ void __attribute__(( noinline )) resetPatch()
 	
 	for(uint8_t i = 0; i < OSC_CNT; ++i)
 	{
-		setFileIndexFromName(WAVE, i, (char *)def_wave);
+		for (int32_t j = 0; j < TABLE_CNT; ++j)
+		{
+			setFileIndexFromName(WAVE, &curWavFile[i][j], def_wave[j]);
+			setFileIndexFromName(WAVE, &phaseFile[i][j], def_wave[0]);
+		}
+
+		env1_knobs[i].send[0] = e_TBLX;
+		env1_knobs[i].send[1] = e_TBLY;
+		env2_knobs[i].send[0] = e_FCUT;
+		env2_knobs[i].send[1] = e_FRES;
+
 		//curWavFile[i] = &files[WAVE][0];
 		pit_knobs[i].vel_glide = 11;
 		pit_knobs[i].pitch = MIDI_KEY_0<<PITCH_COARSE;
@@ -243,17 +392,23 @@ void __attribute__(( noinline )) resetPatch()
 		midi_knobs[i].CC_nums[WND_EVENT] = 11;
 		midi_knobs[i].CC_nums[MW_EVENT] = 74;
 		
-		harmParams[i].gainFund = 127;
-		harmParams[i].gainFirst = 90;
-		harmParams[i].gainLast = 20;
-		harmParams[i].first = 2;
-		harmParams[i].cnt = 1;
-		harmParams[i].step = 1;
+		for (int32_t j = 0; j < TABLE_CNT; ++j)
+		{
+			harmParams[i][j].gainFund = 127;
+			harmParams[i][j].gainFirst = 90;
+			harmParams[i][j].gainLast = 20;
+			harmParams[i][j].first = 2;
+			harmParams[i][j].cnt = 1;
+			harmParams[i][j].step = 1;
+
+			phase_knobs[i][j].before_harm = 1;
+			phase_knobs[i][j].gain = 32;
+			phase_knobs[i][j].phase = 0;
+			phase_knobs[i][j].partial = 0;
+		}
 		
-		phase_knobs[i].before_phase = 127;
-		phase_knobs[i].before_harm = 0;
-		phase_knobs[i].after_phase = 127;
-		phase_knobs[i].after_harm = 1;
+		
+		
 		
 		filt_knobs[i].FRQ = (A4 + MIDI_KEY_0)<<PITCH_COARSE;
 
@@ -263,550 +418,174 @@ void __attribute__(( noinline )) resetPatch()
 	
 	osc_gain[0] = 50;
 	amp_env_knobs[0].rate[0] = 2;
+	pit_knobs[0].vel_glide = 0;
+
 	if(midiThru) SETBIT(MAINTOG, bitMidiThru);
 	
 	initPatch(0, OSC_CNT-1);
+	initOscMidi(0, OSC_CNT - 1);
 	
 }
 
 
 
-void __attribute__(( noinline )) phaseWidth(uint32_t width, int32_t *in_arr, int32_t *out_arr)
+void phaseWidth(int32_t osc, int32_t tbl, int32_t *in_arr, int32_t *out_arr)
 {
-	uint32_t incA;
-	uint32_t incB;
-	
-	//width = phase_width;
-	
-	//if(width < 64)
-	{
-		incA = phase_width_incs[width][0];
-		incB = phase_width_incs[width][1];
-	}
-	/* else
-	{
-		incA = phase_width_incs[127 - width][1];
-		incB = phase_width_incs[127 - width][0];
-	} */
-	uint32_t phase = 0;
-	if(width == 0) phase = 0xFFFFFFFF >> 1;
-	
-	for(uint32_t i = 0; i < 512; ++i)
-	{
-		
-		
-		int32_t wavInd = (phase)>>WAVE_SHIFT;
-		int32_t amp1 = *(in_arr + wavInd);
-		int32_t amp2 = *(in_arr + ((wavInd+1) & 0x1FF));
-		uint32_t off = ((phase) & WAVE_MASK) << WAVE_INTERP;
-		*(out_arr + i) = ___SMMUL(amp1,INT_MAX-off);
-		*(out_arr + i) = ___SMMLA(amp2,off,*(out_arr + i))<<1; 
-		
-		if(i >> 1 <= width) phase += incA;
-		else phase += incB;
-	}
-}
-		
-	
-	
+	PHASE_KNOBS* phase = &phase_knobs[osc][tbl];
 
-	
-void __attribute__(( noinline )) checkHarmQueue()
-{
-	static uint8_t curO = 0;
-	HARMONICS *curHarm = &harmParams[curO];
-	PHASE_KNOBS *cur_phase = &phase_knobs[curO];
-	int8_t *curCnt = &HARM_update[curO];
-	
-	static uint8_t curPart = 1;
-	static int32_t tArr[WAVE_RES] __attribute__ ((section (".sdram")));
-	static int32_t base_arr[WAVE_RES] ;
-	uint32_t gain;
-	if(*curCnt < curHarm->cnt)
+	if (strncmp(phaseFile[osc][tbl]->name, lastPhaseName, MAXFNAMELEN - 1) != 0)
 	{
-		//mark count as completed
-		*curCnt = curHarm->cnt;
-
-		//apply before phasing to base wave
-		if(SHIFTMASK(curO, bitPhase) && cur_phase->before_harm)
+		memcpy(lastPhaseName, phaseFile[osc][tbl]->name, MAXFNAMELEN);
+		readWaveFile(phaseFile[osc][tbl], (int8_t*)phaseArray);
+		usleep(SLEEP_MICROS);;
+		//rt_printf("read file: '%s'\n", phaseFile[osc][tbl]->name);
+	}
+	
+	const float MAX_F = float(int32_t(0x7FFFFFFF));
+	const float MAX_PHASE = float(uint32_t(0xFFFFFFFF));
+	const float mult = float(phase->gain) / float(32.0) / MAX_F;
+	for (int32_t band = 0; band < TABLE_BAND_CNT; ++band)
+	{
+		uint32_t offset = TABLE_BAND_OFFSET[band];
+		const uint32_t incPhase = 0xFFFFFFFF / TABLE_RES[band];
+		const uint32_t incWaveX = phase->partial + 1;
+		uint32_t indWaveX = float(phase->phase) / float(255.0) * float(TABLE_RES[band]);
+		float curPhase = 0;
+		for (uint16_t i = 0; i < TABLE_RES[band]; ++i)
 		{
-			phaseWidth(cur_phase->before_phase, wavArray[curO], tArr);
+			curPhase += float(incPhase) * float(1 + float(phaseArray[indWaveX + offset]) * mult);
+			while (curPhase > MAX_PHASE) curPhase -= MAX_PHASE;
+			while (curPhase < 0) curPhase += MAX_PHASE;
+			uint32_t tPhase = (uint32_t)curPhase;
+			uint32_t wavInd = (tPhase >> TABLE_BAND_COARSE_SHIFT[band]) & TABLE_BAND_LAST_MASK[band];
+			uint32_t off = ((tPhase)&TABLE_BAND_FINE_MASK[band]) << TABLE_BAND_FINE_SHIFT[band];
+			int32_t amp1 = *(in_arr + offset + wavInd);
+			int32_t amp2 = *(in_arr + offset + ((wavInd + 1) & TABLE_BAND_LAST_MASK[band]));
+			int32_t sig = ___SMMUL(amp1, INT_MAX - off);
+			sig = ___SMMLA(amp2, off, sig) << 1;
+			*(out_arr + i + offset) = sig;
+
+			indWaveX = (indWaveX + incWaveX) & TABLE_BAND_LAST_MASK[band];
+			
 		}
-		//otherwise copy base wave
+		if(!band) usleep(SLEEP_MICROS);;
+	}
+}
+		
+	
+	
+
+	
+void checkHarmQueue()
+{
+	static uint8_t curInd = 0;
+	
+	if(HARM_update & (1 << curInd))
+	{
+		int32_t curOsc, curTbl;
+		getOscTblInd(curInd, curOsc, curTbl);
+		HARMONICS* curHarm = &harmParams[curOsc][curTbl];
+		PHASE_KNOBS* cur_phase = &phase_knobs[curOsc][curTbl];
+		
+		static uint8_t curPart = 1;
+		static int32_t tArr[TABLE_FULL_SIZE] __attribute__((section(".sdram")));
+		static int32_t base_arr[TABLE_FULL_SIZE];
+		uint32_t gain;
+		
+		//mark count as completed
+		HARM_update &= ~(1 << curInd);
+
+		////apply before phasing to base wave
+		if(SHIFTMASK(curOsc, bitPhase + curTbl) && cur_phase->before_harm)
+		{
+			phaseWidth(curOsc, curTbl, wavArray[curOsc][curTbl], tArr);
+			usleep(SLEEP_MICROS);;
+		}
+		////otherwise copy base wave
 		else
 		{
-			memcpy(tArr, wavArray[curO], sizeof(tArr));
+			memcpy_safe((uint8_t *)tArr, (uint8_t*)(wavArray[curOsc][curTbl]), sizeof(tArr));
 		}
 		
 		//add harmonics
-		if(SHIFTMASK(curO, bitHarms))
+		if(SHIFTMASK(curOsc, bitHarms + curTbl))
 		{
 			memcpy(base_arr, tArr, sizeof(base_arr));
 			
-			gain = GAIN[curHarm->gainFund];
-			for(uint16_t i = 0; i < WAVE_RES; ++i)
+			for (int32_t band = 0; band < TABLE_BAND_CNT; ++band)
 			{
-				tArr[i] = ___SMMUL(base_arr[i], gain);//<<1;	
+				uint32_t offset = TABLE_BAND_OFFSET[band];
+				uint32_t res = TABLE_RES[band];
+				uint32_t part_limit = TABLE_BAND_PARTIAL_MAX[band];
+				uint32_t ind_mask = TABLE_BAND_LAST_MASK[band];
+				gain = GAIN[curHarm->gainFund];
+				for (uint32_t i = 0; i < res; ++i)
+				{
+					tArr[i + offset] = ___SMMUL(base_arr[i + offset], gain);//<<1;	
+				}
+
+				curPart = curHarm->first;
+				//*curCnt += 1;
+
+				//add in remaining partials
+				for (uint32_t p = 0; p < curHarm->cnt && curPart <= part_limit; p++)
+				{
+					if (curHarm->cnt < 2)
+					{
+						gain = GAIN[curHarm->gainFirst];
+					}
+					else
+					{
+						gain = GAIN[int8_t((curHarm->gainLast - curHarm->gainFirst) * float(p) / float((curHarm->cnt) - 1)) + curHarm->gainFirst];
+					}
+
+					uint32_t j = 0;
+
+					//add in the current partial
+					for (uint32_t i = 0; i < res; ++i)
+					{
+						tArr[i + offset] = __SSAT(tArr[i + offset] + (___SMMUL(base_arr[j + offset], gain)), 31);
+						j = (j + curPart) & ind_mask;
+					}
+
+					curPart += curHarm->step;
+				}
 			}
-
-			curPart = curHarm->first;	
-			//*curCnt += 1;
-
-			//add in remaining partials
-			for(uint8_t p = 0; p < curHarm->cnt; p++)
-			{
-				if(curHarm-> cnt < 2)
-				{
-					gain = GAIN[curHarm->gainFirst];
-				}
-				else
-				{
-					gain = GAIN[int8_t((curHarm->gainLast - curHarm->gainFirst) * float(p)/float((curHarm->cnt)-1)) + curHarm->gainFirst];
-				}
-					
-				uint16_t j = 0;
-				
-				//add in the current partial
-				for(uint16_t i = 0; i < WAVE_RES; ++i)
-				{
-					tArr[i] = __SSAT(tArr[i] + (___SMMUL(base_arr[j], gain)), 31);	
-					j = (j + curPart) & WAVE_RES_MASK;
-				}
-
-				curPart += curHarm->step;
-			}
-			
-			for(uint16_t i = 0; i < WAVE_RES; ++i)
+			for (uint32_t i = 0; i < TABLE_FULL_SIZE; ++i)
 			{
 				tArr[i] <<= 1;
 			}
+			
 		}
 		
-		if(SHIFTMASK(curO, bitPhase) && cur_phase->after_harm)
+		if(SHIFTMASK(curOsc, bitPhase + curTbl) && !cur_phase->before_harm)
 		{
-			phaseWidth(cur_phase->after_phase, tArr, harmArray[curO]);
+			usleep(SLEEP_MICROS);;
+			phaseWidth(curOsc, curTbl, tArr, tArr);
+			usleep(SLEEP_MICROS);;
 		}
-		else
-		{
-			memcpy(harmArray[curO], &tArr, sizeof(tArr));
-		}
+		memcpy(harmArray[curOsc][curTbl], tArr, sizeof(tArr));
+		
 		GRAPH_update = 1;
 
 	}
 	else
 	{
-		curO = indexIncrement(curO, 1, OSC_CNT);
+		curInd = indexIncrement(curInd, 1, OSC_CNT * TABLE_CNT);
 	}
 }
 
 	
-/* void __attribute__(( noinline )) checkHarmQueue()
-{
-	static uint8_t curO = 0;
-	HARMONICS *curHarm = &harmParams[curO];
-	int8_t *curCnt = &HARM_update[curO];
-	static uint8_t curPart = 1;
-	static int32_t tArr[WAVE_RES];
-	uint32_t gain;
-	if(*curCnt < curHarm->cnt)
-	{
-		*curCnt = curHarm->cnt;
-		//if it's been reset, reset the array
-		gain = GAIN[curHarm->gainFund];
-		for(uint16_t i = 0; i < WAVE_RES; ++i)
-		{
-			tArr[i] = ___SMMUL(wavArray[curO][i], gain);//<<1;	
-		}
-
-		curPart = curHarm->first;	
-		//*curCnt += 1;
-
-		//add in remaining partials
-		for(uint8_t p = 0; p < curHarm->cnt; p++)
-		{
-			if(curHarm-> cnt < 2)
-			{
-				gain = GAIN[curHarm->gainFirst];
-			}
-			else
-			{
-				gain = GAIN[int8_t((curHarm->gainLast - curHarm->gainFirst) * float(p)/float((curHarm->cnt)-1)) + curHarm->gainFirst];
-			}
-				
-			uint16_t j = 0;
-			
-			//add in the current partial
-			for(uint16_t i = 0; i < WAVE_RES; ++i)
-			{
-				tArr[i] = __SSAT(tArr[i] + (___SMMUL(wavArray[curO][j], gain)), 31);	
-				j = (j + curPart) & WAVE_RES_MASK;
-			}
-
-			curPart += curHarm->step;
-		}
-		
-		for(uint16_t i = 0; i < WAVE_RES; ++i)
-		{
-			tArr[i] <<= 1;
-		}
-		memcpy(harmArray[curO], &tArr, sizeof(tArr));
-		GRAPH_update = 1;
-
-	}
-	else
-	{
-		curO = indexIncrement(curO, 1, OSC_CNT);
-	}
-}
- */
- 
- // void check_knob_turns(uint8_t knobInd, const char pin_group[2][3])
- // { 
-	// uint8_t tIn = read_pin(pin_group[0]);
-	// tIn |= (read_pin(pin_group[1]) << 1);
-	
-	// //check for knob turns
-	// if((tIn) != (KNOB_A[knobInd]))
-	// {
-		// uint8_t chg = tIn ^ KNOB_A[knobInd];
-		// uint8_t isDone = 0;
-		// uint32_t elapsed = ticks - KNOB_TICKS[knobInd];
-		
-		// //starting a new turn, reset direction
-		// if(elapsed > 400) KNOB_DIR[knobInd] = 0;
-		
-		// //both signals changed--garbage data-- add it as an acceleration of the current direction
-		// if(chg == 3) 
-		// {
-			// if(KNOB_DIR[knobInd]) isDone = 2;
-		// }
-		// else
-		// {
-			// //compare signal A to signal B to get direction
-			// int8_t dir = ((tIn & 1) == (tIn >> 1))? 1 : -1;
-			
-			// //if A changed, flip the result 
-			// if(chg & 1)
-			// {
-				// dir = -dir;
-				
-				// //if A returned to high, it landed back in a detent
-				// if(tIn & 1) isDone = 1;
-			// }
-			
-			// //direction change is either an acceleration (if elapsed is small) or direction change
-			// if(dir != KNOB_DIR[knobInd] && elapsed < 48) isDone = 3;
-			// else KNOB_DIR[knobInd] = dir;
-		// }
-		
-		// //apply knob turns
-		// if(isDone && KNOB_DIR[knobInd])
-		// {
-			// LogTextMessage("knob %u, val %d\n", knobInd, KNOB_DIR[knobInd]<<(isDone-1));
-			// //addToInputQueue(KNOB_GRP, knobInd, KNOB_DIR[knobInd]<<(isDone-1), 0);
-		// }
-
-		// KNOB_A[knobInd] = tIn;
-		// KNOB_TICKS[knobInd] = ticks;
-	// }
- // }
- 
-  // void check_knob_turns(uint32_t knobInd, const char pin_group[2][3])
- // { 
-	// static uint8_t A_seq[8] = {0};
-	// static uint8_t B_seq[8] = {0};
-	// static uint8_t events[8] = {0};
-	// static uint32_t initialized = 0;
-	// static int32_t last_dir[8] = {0};
-	// static uint8_t knob_val[8] = {0};
-	// uint32_t tA = read_pin(pin_group[0]);
-	// uint32_t tB = read_pin(pin_group[1]);
-	
-	
-	
-	// if(!((initialized >> knobInd) & 1))
-	// {
-		// initialized |= (1 << knobInd);
-		// A_seq[knobInd] = tA;
-		// B_seq[knobInd] = tB;
-		// KNOB_TICKS[knobInd] = ticks;
-	// }
-	
-	// uint32_t A_chg = tA != (A_seq[knobInd] & 1);
-	// uint32_t B_chg = tB != (B_seq[knobInd] & 1);
-	
-	// //check for knob turns
-	// if(A_chg || B_chg)
-	// {	
-		// A_seq[knobInd] <<= 1;
-		// A_seq[knobInd] |= tA;
-		// B_seq[knobInd] <<= 1;
-		// B_seq[knobInd] |= tB;
-		
-		// if(A_chg && tA)
-		// {
-			// uint32_t b_val = B_seq[knobInd] & 0xF;
-			// uint32_t elapsed = ticks - KNOB_TICKS[knobInd];
-			// int32_t dir = elapsed < 40? last_dir[knobInd] : (b_val == 0x03) ? -1 : (b_val == 0x0C) ? 1 : (elapsed < 100) ? last_dir[knobInd] : 0; 
-			// int32_t mult = elapsed < 20? 4: elapsed < 40? 3 : (b_val == 0x03 || b_val == 0x0C) ? 1 : 2; 
-			// addToInputQueue(KNOB_GRP, knobInd, dir * mult, 0);
-			// KNOB_TICKS[knobInd] = ticks;
-			// last_dir[knobInd] = dir;
-		// }
-
-	// }
- // }
- 
-   void check_knob_turns(uint32_t knobInd, uint8_t sig)
- { 
-	static uint8_t A_seq[8] = {0};
-	static uint8_t B_seq[8] = {0};
-	static uint8_t events[8] = {0};
-	static uint32_t initialized = 0;
-	static int32_t last_dir[8] = {0};
-	static uint8_t knob_val[8] = {0};
-	uint32_t tA = sig & 1;
-	uint32_t tB = (sig >> 1) & 1;
-	
-	
-	
-	if(!((initialized >> knobInd) & 1))
-	{
-		initialized |= (1 << knobInd);
-		A_seq[knobInd] = tA;
-		B_seq[knobInd] = tB;
-		KNOB_TICKS[knobInd] = ticks;
-	}
-	
-	uint32_t A_chg = tA != (A_seq[knobInd] & 1);
-	uint32_t B_chg = tB != (B_seq[knobInd] & 1);
-	
-	//check for knob turns
-	if(A_chg || B_chg)
-	{	
-		A_seq[knobInd] <<= 1;
-		A_seq[knobInd] |= tA;
-		B_seq[knobInd] <<= 1;
-		B_seq[knobInd] |= tB;
-		
-		if(A_chg && tA)
-		{
-			uint32_t b_val = B_seq[knobInd] & 0xF;
-			uint32_t elapsed = ticks - KNOB_TICKS[knobInd];
-			int32_t dir = elapsed < 40? last_dir[knobInd] : (b_val == 0x03) ? -1 : (b_val == 0x0C) ? 1 : (elapsed < 100) ? last_dir[knobInd] : 0; 
-			int32_t mult = elapsed < 20? 4: elapsed < 40? 3 : (b_val == 0x03 || b_val == 0x0C) ? 1 : 2; 
-			addToInputQueue(KNOB_GRP, knobInd, dir * mult, 0);
-			KNOB_TICKS[knobInd] = ticks;
-			last_dir[knobInd] = dir;
-		}
-
-	}
- }
- 
-/*  void __attribute__(( noinline )) check_knob(const char pins[2][3], uint8_t *states, int32_t ind, int32_t grp)
- {
-	uint32_t a_sig = read_pin(pins[0]);
-	uint32_t b_sig = read_pin(pins[1]);
-	int32_t b_ind = ind + 4;
-	
-	if(b_sig != ((*states >> b_ind) & 1))
-	{
-		*states ^= (1 << b_ind);
-	}
-	
-	if(a_sig != ((*states >> ind) & 1))
-	{
-		*states ^= (1 << ind);
-		
-		if(a_sig)
-		{
-			if(b_sig)
-			{
-				LogTextMessage("knob %u left\n", ind + (grp << 2));
-			}
-			else
-			{
-				LogTextMessage("knob %u right\n", ind + (grp << 2));
-			}
-		}
-	}
-	
- } */
-void __attribute__(( noinline )) scanInputs()
-{
-	
-	
-	static uint8_t ind = 0;
-	static uint8_t grp = 0;
-	static uint8_t l_ind = 0;
-	static uint16_t mxs[5] = {0};
-	static uint8_t k_lower = 0;
-	static uint8_t k_upper = 0;
-	static uint8_t tM[16];
-	
-	if(!grp)
-	{
-		tM[ind] = palReadGroup(GPIOC, 0x1F, 0);
-	}
-
-	uint8_t tk = palReadGroup(GPIOB, 0xC3, 0);
-	check_knob_turns(ind & 0x03, (tk >> 6) & 3);
-	check_knob_turns((ind & 0x03) + 4, tk & 3);
-
-	checkSwitch(grp, ind, (tM[ind] >> grp) & 1);
-	
-	
-	// check_knob_turns(ind & 0x03, lower_knob_pins);
-	// check_knob_turns((ind & 0x03) + 4, upper_knob_pins);
-	//checkSwitch(grp, ind);
-
-	
-	
-	//increment channel
-	ind = (ind+1) & 0x0F;
-	if(!ind)
-	{
-		grp = indexIncrement(grp, 1, 5);
-	}
-	
-	if(!(ticks % 700))
-	{
-		l_ind = (l_ind + 1) & 0x0F;
-		
-		//LogTextMessage("%u led\n", l_ind);
-	}
-	
-	//more generic control
-	/* for(uint32_t i = 0; i < 4; ++i)
-	{
-		write_pin(led_pins[i], 1);
-			
-	}
-	
-	//set the channel for the next read
-	for(int32_t i = 0; i < 4; ++i)
-	{
-		write_pin(chan_pins[i], (ind >> i) & 1);
-		
-	}
-	
-	
-	uint8_t on[4];
-	for(uint32_t i = 0; i < 4; ++i)
-	{
-		on[i] =  (LED[i] >> ind) & 1;
-		if(i == blinkGrp && ind == blinkInd)
-		{
-			on[i] = (ticks >> 10) & 1;
-		}
-		write_pin(led_pins[i], on[i]);
-			
-	} */
-	
-	//set the channel for the next read
-	palWriteGroup(GPIOA, 0x0F, 4, ind);
-	
-	
-	uint8_t on[4];
-	for(uint32_t i = 0; i < 4; ++i)
-	{
-		on[i] =  (LED[i] >> ind) & 1;
-		if(i == blinkGrp && ind == blinkInd)
-		{
-			on[i] = (ticks >> 10) & 1;
-		}			
-	}
-
-	//set the LEDS
-	palWritePad(GPIOC, 5, on[0]);
-	palWritePad(GPIOA, 0, on[1]);
-	palWritePad(GPIOA, 1, on[2]);
-	palWritePad(GPIOA, 2, on[3]);
 
 
-	
-
-}
-
-void __attribute__(( noinline )) checkSwitch(uint8_t group, uint8_t ind, uint8_t sig)
-{
-	static uint32_t timer[5] = {0};
-	static uint16_t held[5];
-	
-	uint8_t prev = (MX[group] >> ind) & 1;
-	
-
-	if(sig != prev)
-	{
-		MX[group] ^= (1 << ind);
-		if(!sig) 
-		{
-			timer[group] = ticks;
-			held[group] &= ~(1 << ind);
-		}
-		else if(!((held[group] >> ind) & 1)) 
-		{
-			addToInputQueue(group, ind, 1, 1);
-		}
-	}
-	
-	else if(!sig && !((held[group] >> ind) & 1) && ticks-timer[group] > HOLD_TIME)
-	{
-		held[group] |= (1 << ind);
-		addToInputQueue(group, ind, 1, 0);
-	}
-}
-
-// void __attribute__(( noinline )) checkSwitch(uint8_t group, uint8_t ind)
-// {
-	// static uint32_t timer[5] = {0};
-	// static uint16_t held[5];
-	
-	// uint8_t sig = read_pin(mx_pins[group]);
-	// uint8_t prev = (MX[group] >> ind) & 1;
-	
-
-	// if(sig != prev)
-	// {
-		// MX[group] ^= (1 << ind);
-		// if(!sig) 
-		// {
-			// timer[group] = ticks;
-			// held[group] &= ~(1 << ind);
-		// }
-		// else if(!((held[group] >> ind) & 1)) 
-		// {
-			// addToInputQueue(group, ind, 1, 1);
-		// }
-	// }
-	
-	// else if(!sig && !((held[group] >> ind) & 1) && ticks-timer[group] > HOLD_TIME)
-	// {
-		// held[group] |= (1 << ind);
-		// addToInputQueue(group, ind, 1, 0);
-	// }
-// }
 
 
-void  __attribute__(( noinline )) addToInputQueue(uint8_t group, uint8_t ind, int32_t val, uint8_t isQuick)
-{
-	static uint8_t writeInd = 0;
-	if(group == 4 && ind > 7) ++group;
-	//LogTextMessage("g %u, ind %u, val %u, isQ %u", group, ind, val, isQuick);
-	if(inputQueue[writeInd][2] && (inputQueue[writeInd][0] != group || inputQueue[writeInd][1] != ind)) LogTextMessage("s");
-	inputQueue[writeInd][0] = group;
-	inputQueue[writeInd][1] = ind;
-	inputQueue[writeInd][2] += val;
-	inputQueue[writeInd][3] = isQuick;	
-	++writeInd &= 0x03;
-}
-
-uint8_t  __attribute__(( noinline )) oscFromGrpInd(uint8_t group, uint8_t ind)
+uint8_t  oscFromGrpInd(uint8_t group, uint8_t ind)
 {
 	return ((group << 4) + ind) >> 3;
 }
 	
-void  __attribute__(( noinline )) toggleSelected(uint8_t osc)
+void  toggleSelected(uint8_t osc)
 {
 	
 	for(uint8_t tOsc = 0; tOsc < OSC_CNT; tOsc++)
@@ -815,13 +594,13 @@ void  __attribute__(( noinline )) toggleSelected(uint8_t osc)
 		else CLEARBIT(tOsc, bitOsc);//toggles[tOsc] &= ~maskOsc;
 
 	}
-	//LogTextMessage("s");
+	//rt_printf("osc %d\n", osc);
 	CLEARBIT(MAINTOG, bitMainLVL);
 	oscInd = osc;
 }
 
 	
-void  __attribute__(( noinline )) updateLEDs()
+void  updateLEDs()
 {
 	uint8_t tLed[2];
 	for(uint8_t osc = 0; osc < OSC_CNT; osc++)
@@ -845,7 +624,9 @@ void  __attribute__(( noinline )) updateLEDs()
 			
 			for(pos= 0; pos < 8; pos++)
 			{
-				uint8_t isOn = SHIFTMASK(osc, big_group[pos][0]);
+				int32_t tog = big_group[pos][0];
+				if (perTableTog(tog)) tog += table_page;
+				uint8_t isOn = SHIFTMASK(osc, tog);
 				
 				//leds that depend on other settings as well
 				switch(big_group[pos][0])
@@ -870,17 +651,18 @@ void  __attribute__(( noinline )) updateLEDs()
 			
 }
 
-uint16_t __attribute__(( noinline )) LEDfromGroup(int8_t osc, uint8_t ind, uint8_t tog)
+uint16_t LEDfromGroup(int8_t osc, uint8_t ind, int8_t tog)
 {
 	if(osc != -1 && tog != -1)
 	{
 		if(osc == E_OSC) osc = oscInd;//? oscInd: MAINTOG;
+		if (perTableTog(tog)) tog += table_page;
 		return (SHIFTMASK(osc, tog) << ind);
 	}
 	return 0;
 }
 	
-void __attribute__(( noinline )) copyOsc(uint8_t destOsc, uint8_t srcOsc, uint8_t bit)	
+void copyOsc(uint8_t destOsc, uint8_t srcOsc, uint8_t bit)	
 {
 	//dont bother copying itself			
 	if(destOsc == srcOsc) return;
@@ -891,14 +673,18 @@ void __attribute__(( noinline )) copyOsc(uint8_t destOsc, uint8_t srcOsc, uint8_
 		//copy all settings
 		for(uint8_t i = 0; i < settingsCnt; ++i)
 		{
-			uint8_t sz = ptrSingleSizes[i];
-			void *addSrc = varPtrs[i] + sz * srcOsc;
-			void *addDst = varPtrs[i] + sz * destOsc;
-			memcpy(addDst, addSrc, sz);
+			uint32_t sz = ptrSingleSizes[i];
+			uint8_t *addSrc = ((uint8_t*)(varPtrs[i])) + sz * srcOsc;
+			uint8_t *addDst = ((uint8_t*)(varPtrs[i])) + sz * destOsc;
+			memcpy_safe(addDst, addSrc, sz);
 		}
 		
 		//copy wave table reference
-		curWavFile[destOsc] = curWavFile[srcOsc];
+		for (int32_t tableInd = 0; tableInd < TABLE_CNT; ++tableInd)
+		{
+			curWavFile[destOsc][tableInd] = curWavFile[srcOsc][tableInd];
+			phaseFile[destOsc][tableInd] = phaseFile[srcOsc][tableInd];
+		}
 		
 		//handle weirdness of copying poly to mono and visa versa
 		if(destOsc >= POLY_CNT) CLEARBIT(destOsc, bitPoly);
@@ -907,9 +693,9 @@ void __attribute__(( noinline )) copyOsc(uint8_t destOsc, uint8_t srcOsc, uint8_
 		//if osc poly settings match, copy envelope shit
 		if(SHIFTMASK(destOsc, bitPoly) == SHIFTMASK(srcOsc, bitPoly))
 		{
-			uint8_t childTo = firstChild[destOsc];
-			uint8_t childFrom = firstChild[srcOsc];
-			uint8_t children = (destOsc < POLY_CNT && srcOsc < POLY_CNT)? NOTES_CNT: 1;
+			uint32_t childTo = firstChild[destOsc];
+			uint32_t childFrom = firstChild[srcOsc];
+			uint32_t children = (childCnt[destOsc] == childCnt[srcOsc]) ? childCnt[destOsc] : 1;
 			
 			susOn[destOsc] = susOn[srcOsc];
 			monoPitch[destOsc] = monoPitch[srcOsc];
@@ -917,11 +703,11 @@ void __attribute__(( noinline )) copyOsc(uint8_t destOsc, uint8_t srcOsc, uint8_
 			
 			for(uint8_t i = settingsCnt; i < copyStop; ++i)
 			{
-				uint8_t sz = ptrSingleSizes[i];
-				void *addSrc = varPtrs[i] + sz * childFrom;
-				void *addDst = varPtrs[i] + sz * childTo;
+				uint32_t sz = ptrSingleSizes[i];
+				uint8_t* addSrc = ((uint8_t*)(varPtrs[i])) + sz * childFrom;
+				uint8_t* addDst = ((uint8_t*)(varPtrs[i])) + sz * childTo;
 				
-				memcpy(addDst, addSrc, sz * children);			
+				memcpy_safe(addDst, addSrc, sz * children);			
 			}
 		}
 	}
@@ -932,21 +718,21 @@ void __attribute__(( noinline )) copyOsc(uint8_t destOsc, uint8_t srcOsc, uint8_
 		switch(bit)
 		{
 			case bitHarms:
-				harmParams[destOsc] = harmParams[srcOsc];
-				extraBits |= (1 << bitHarms); 
+				memcpy(harmParams[destOsc], harmParams[srcOsc], sizeof(harmParams[srcOsc]));
+				extraBits |= (0xF << bitHarms); 
 				break;
 			case bitAEnv: 
 				amp_env_knobs[destOsc] = amp_env_knobs[srcOsc]; 
 				break;
 			case bitPEnv: 
-				pit_env_knobs[destOsc] = pit_env_knobs[srcOsc]; 
+				env1_knobs[destOsc] = env1_knobs[srcOsc];
 				break;
 			case bitFilt:
 				filt_knobs[destOsc] = filt_knobs[srcOsc];
 				extraBits |= (1 << bitFTrack); 
 				break;
 			case bitFEnv:
-				filt_env_knobs[destOsc] = filt_env_knobs[srcOsc];
+				env2_knobs[destOsc] = env2_knobs[srcOsc];
 				extraBits |= (1 << bitFECut);
 				break;
 			case bitArp:
@@ -967,10 +753,10 @@ void __attribute__(( noinline )) copyOsc(uint8_t destOsc, uint8_t srcOsc, uint8_
 	else initPatch(srcOsc, destOsc);
 }	
 
-void __attribute__(( noinline )) routeMod(uint8_t destOsc, uint8_t bit, uint16_t sourceBit)	
+void routeMod(uint8_t destOsc, uint8_t bit, uint16_t sourceBit)	
 {
 	
-	uint8_t ind = -1;
+	int8_t ind = -1;
 	uint16_t src = OSC_SRC;
 	switch(sourceBit)
 	{
@@ -984,11 +770,13 @@ void __attribute__(( noinline )) routeMod(uint8_t destOsc, uint8_t bit, uint16_t
 	switch(bit)
 	{
 		case bitAEnv: ind = AMP_MOD; break;
+		case bitHarms: ind = TBL_X_MOD; break;
 		case bitPEnv: ind = PIT_MOD; break;
 		case bitFilt: ind = CUT_MOD; break;
 		case bitFEnv: ind = RES_MOD; break;
 		case bitArp: ind = ARPTIME_MOD; break;
 		case bitMain: ind = GATE_MOD; break;
+			
 		//case bitMain: ind = PAN_MOD; break;
 	}
 	if(ind != -1)
@@ -999,7 +787,7 @@ void __attribute__(( noinline )) routeMod(uint8_t destOsc, uint8_t bit, uint16_t
 	}	
 }
 
-uint8_t __attribute__(( noinline ))  finishRecording()
+uint8_t  finishRecording()
 {	
 	uint32_t recState = 0; 
 	if(SHIFTMASK(MAINTOG, bitRecArp)) recState = 1;
@@ -1098,8 +886,8 @@ uint8_t __attribute__(( noinline ))  finishRecording()
 		updateLCDelems(OBJ3, OBJ6);
 		//memset(&LCD_update[OBJ3], 1, 4);
 		
-		PIT_ENV_KNOBS *curEnv;
-		if(screenInd == PITENV)
+		DUAL_ENV_KNOBS *curEnv;
+		if(screenInd == DUALENV1)
 		{
 			SETBIT(oscInd, bitPEnv);
 			curEnv = &pit_env_knobs[oscInd];
@@ -1125,7 +913,7 @@ uint8_t __attribute__(( noinline ))  finishRecording()
 						uint8_t actStg = stg;
 						if(stg < free) curEnv->time[stg] = ind;
 						else actStg = stg-free + FREE_STAGES;
-						if(screenInd == FILTENV) curEnv->glide[actStg] = ind;
+						if(screenInd == DUALENV2) curEnv->glide[actStg] = ind;
 						break;
 					}
 				}
@@ -1146,48 +934,23 @@ uint8_t __attribute__(( noinline ))  finishRecording()
 	return 1;
 }
 
-/* void __attribute__(( noinline )) equalizeAmp(uint8_t osc)
+/* void equalizeAmp(uint8_t osc)
 {
 	if(SHIFTMASK(osc, bitAEnv))
 	{
-		for(uint8_t child = firstChild[osc]; child < firstChild[osc] + childCnt(osc); child++)
+		for(uint8_t child = firstChild[osc]; child < firstChild[osc] + childCnt[osc]; child++)
 		{
 			amp_env[child].val = 0x7FFFFFFF;
 		}
 	}
 } */
 
-int32_t __attribute__(( noinline )) unit_dir(int32_t inc)
-{
-	int32_t uInc = 0;
-	if(inc > 0)
-	{
-		uInc = 1;
-	}
-	else if(inc < 0)
-	{
-		uInc = -1;
-	}
-	return uInc;
-}
 
-int32_t __attribute__(( noinline )) ensure_not_self_ratio(int32_t inc)
-{
-	int32_t ret = 0;
-	if(pit_ratio[oscInd].src == oscInd)
-	{
-		inc = unit_dir(inc);
-		pit_ratio[oscInd].src = indexIncrement(pit_ratio[oscInd].src, inc, 6);
-		ret = 1;
-		
-	}
-	LCD_update[OBJ2] = 1;
-	return ret;
-}
 
-void __attribute__(( noinline )) updateUINT8val(uint8_t *val, int8_t inc, uint8_t isToggle, uint8_t LCD, uint32_t full)
+
+void updateUINT8val(uint8_t *val, int8_t inc, uint8_t isToggle, uint8_t LCD, uint32_t full)
 {
-	uint32_t t = *val;
+	int32_t t = *val;
 	if(isToggle)
 	{
 		if(t == 0) t = (full ? 255 : 127);
@@ -1204,7 +967,6 @@ void __attribute__(( noinline )) updateUINT8val(uint8_t *val, int8_t inc, uint8_
 
 void handleKnobs()
 {
-	#if !LOADTABLES
 	
 	static uint8_t readInd = 0;
 	static int32_t next_loop = 0;
@@ -1231,12 +993,16 @@ void handleKnobs()
 			//patch load
 			case EX_PATCHLD:
 				incrementFileIndex(PATCH, next_inc, next_dir);
-				FIL_update[MAINTOG] = 1;//loadFile(fType, oscInd);
+				FIL_update |= (1 << MAIN_FIL);//loadFile(fType, oscInd);
 				updateLCDelems(OBJ1, OBJ6);
 				break;
 			//osc copy
 			case EX_COPY:
+				//rt_printf("doing the copy\n");
 				copyOsc(oscInd, next_inc, bitOsc);
+				break;
+			case EX_POLY16:
+				toggle_POLY16(); 
 				break;
 		}
 		updateLEDs();
@@ -1249,6 +1015,7 @@ void handleKnobs()
 		uint8_t inputGrp = inputQueue[readInd][0];
 		uint8_t inputInd = inputQueue[readInd][1];
 		int32_t inc = inputQueue[readInd][2];
+		int32_t is_quick = inputQueue[readInd][3];
 		inputQueue[readInd][2] = 0;
 		
 		
@@ -1259,6 +1026,8 @@ void handleKnobs()
 		int8_t extra = 0;
 		uint8_t wasCopy = SHIFTMASK(MAINTOG, bitCopy);
 		uint8_t wasRoute = SHIFTMASK(MAINTOG, bitRoute);
+
+		//rt_printf("was copy %u\n", wasCopy);
 		//CLEARBIT(MAINTOG, bitCopy);
 		
 		//if recording, stop and ignore the input
@@ -1295,7 +1064,8 @@ void handleKnobs()
 					//copy if applicable and cancel any other actions
 					if(wasCopy)
 					{
-						if(tog == bitOsc)
+						//rt_printf("copying osc %d tog %d\n", osc, tog);
+						if (tog == bitOsc)
 						{
 							next_loop = EX_COPY;
 							main_clock1 = MAIN_FADE;
@@ -1342,15 +1112,24 @@ void handleKnobs()
 			}
 			
 			if(osc == E_OSC) osc = oscInd;
-	
-			//tell non poly's to fuck off
-			if(tog == bitPoly && osc >= POLY_CNT) 
+			
+			if (osc < MAINTOG)
 			{
-				tog = -1;
-				extra = 0;
+				//tell non poly's to fuck off
+				if (tog == bitPoly && osc >= POLY_CNT)
+				{
+					tog = -1;
+					extra = 0;
+				}
+				//modify toggle for per-table toggles
+				if (perTableTog(tog))
+				{
+					tog += table_page;
+				}
+				//tell filter track to fuck off too (needs to wait for volume reduction)
+				if (tog == bitFTrack) tog = -1;
 			}
-			//tell filter track to fuck off too (needs to wait for volume reduction)
-			if(tog == bitFTrack) tog = -1;
+			
 			
 			int32_t scrnOsc = osc;
 			
@@ -1358,9 +1137,11 @@ void handleKnobs()
 			if(tog != -1 && inputQueue[readInd][3])
 			{
 				TOGGLEBIT(osc, tog); 	
+
+				//printf("osc %d, tog %d, copy %d\n", osc, tog, SHIFTMASK(MAINTOG, bitCopy));
 				
 				//default route from main of selected
-				if(tog == bitRoute)
+				if(osc == MAINTOG && tog == bitRoute)
 				{
 					blinkGrp = oscInd >> 1;
 					blinkInd = (oscInd & 1)? 15: 7;
@@ -1420,15 +1201,31 @@ void handleKnobs()
 					case EX_FAV2:
 					case EX_FAV3:
 					case EX_FAV4:
-					case EX_FAV5: 
-						favInd = (extra - EX_PATRNDCLR) + ((isTog)? 0: 5); 
-						favSave = wasCopy; 
-						favAction(favInd, favSave);
-						if(!favSave)
+						favInd = extra - EX_FAV1;
+						if (screenInd == DUALENV2 || screenInd == DUALENV1)
 						{
-							//queue files load
-							FIL_update[MAINTOG] = 1; //loadFile(PATCH, 0);
+							if ((envInd == 0 || envInd == 3) && envInd == favInd)
+							{
+								envInd = 4;
+							}
+							else
+							{
+								envInd = favInd;
+							}
 						}
+						else
+						{
+							table_page = favInd;
+						}
+						updateLCDelems(OBJ1, OBJ6);
+						//favInd = (extra - EX_PATRNDCLR) + ((isTog)? 0: 5); 
+						//favSave = wasCopy; 
+						//favAction(favInd, favSave);
+						//if(!favSave)
+						//{
+						//	//queue files load
+						//	FIL_update[MAINTOG] = 1; //loadFile(PATCH, 0);
+						//}
 						
 						break;
 					case EX_TRIG_ON:
@@ -1445,7 +1242,12 @@ void handleKnobs()
 					case EX_HOLD_ALL: offEvent(0, OSC_CNT -1, ALL_SLOTS, 0); break;
 					case EX_ARPNOTREC: scrn = (isTog)? ARPEGNOTES: ARPREC; break;
 					case EX_PATSVLD: scrn = (isTog)? PATCHSV: PATCHLD; break;
-					case EX_HARM: HARM_update[osc] = -1; break;
+					case EX_HARM: queueOscTbl(HARM_update, osc); GRAPH_update = 0; break;
+					case EX_POLY16: 
+						main_clock1 = MAIN_FADE;
+						main_clock2 = MAIN_FADE << 2;
+						next_loop = EX_POLY16;
+						break;
 					case EX_FTRACK: 
 						main_clock1 = MAIN_FADE;
 						main_clock2 = MAIN_FADE << 2; 
@@ -1473,10 +1275,19 @@ void handleKnobs()
 			if(scrnOsc != MAINTOG) toggleSelected(scrnOsc);
 			
 			//update the screen
-			if(scrn != -1) screenInd = scrn;
-			
+			if (scrn != -1)
+			{
+				
+				screenInd = scrn;
+				//rt_printf("screen %d\n", screenInd);
+			}
+
 			//make sure copy and route are properly cleared after any action (except toggling them on)
-			if(wasCopy) CLEARBIT(MAINTOG, bitCopy);
+			if (wasCopy)
+			{
+				//rt_printf("clearing copy\n");
+				CLEARBIT(MAINTOG, bitCopy);
+			}
 			if(wasRoute)
 			{
 				CLEARBIT(MAINTOG, bitRoute);
@@ -1506,16 +1317,37 @@ void handleKnobs()
 		//screen knobs
 		else
 		{
+			int32_t isEnv2 = 1;
 			//LogTextMessage("k %u %u %d", inputGrp, inputInd, inc);
 			switch(screenInd)
 			{
 				case WAVETBL:
-					if(!SHIFTMASK(oscInd, bitWave))
+					
+					if (inputInd == KNOB_BUT1)
 					{
-						SETBIT(oscInd, bitWave);
+						table_page = 0;
+						updateLCDelems(OBJ1, OBJ6);
+						break;
+					}
+					else if (inputInd == KNOB1)
+					{
+						table_page = indexIncrement(table_page, unit_dir(inc), TABLE_CNT);
+						updateLCDelems(OBJ1, OBJ6);
+						break;
+					}
+					else if (inputInd == KNOB2 || inputInd == KNOB_BUT2)
+					{
+						screenInd = TBLPOS;
+						updateLCDelems(SCRN, OBJ6);
+						break;
+					}
+					if (!SHIFTMASK(oscInd, bitWave + table_page))
+					{
+						SETBIT(oscInd, bitWave + table_page);
 						//updateOscTypes(waveOsc, &waveCnt, noiseOsc, &noiseCnt, bitWave);
 						updateLEDs();
 					}
+				
 				case PATCHLD:
 				{
 					uint8_t fType = (screenInd == WAVETBL)? WAVE: PATCH;
@@ -1530,16 +1362,61 @@ void handleKnobs()
 					else
 					{
 						incrementFileIndex(fType, next_inc, next_dir);
-						FIL_update[oscInd] = 1;//loadFile(fType, oscInd);
+						queueOscTbl(FIL_update, oscInd);//loadFile(fType, oscInd);
 						updateLCDelems(OBJ1, OBJ6);
 					}
 				}
 				break;
 					
+				case TBLPOS:
+				{
+					int8_t ind = knobPos(KNOB1, inputInd);//-1;
+					if (ind < 2)
+					{
+						if (inputInd >= KNOB_BUT1) tableRatios[oscInd][ind] = tableRatios[oscInd][ind] ? 0 : TBL_MAX;
+						else tableRatios[oscInd][ind] = __USAT(tableRatios[oscInd][ind] + (inc * TBL_INC), TBL_SAT);
+					}
+					else
+					{
+						ind -= 2;
+						int32_t x = inc * ((ind & 0x1) ? 1 : -1);
+						int32_t y = inc * ((ind & 0x2) ? 1 : -1);
+						//rt_printf("x %d y %d\n", x, y);
 
+						if (inputInd >= KNOB_BUT1)
+						{
+							x = x > 0 ? TBL_MAX : 0;
+							y = y > 0 ? TBL_MAX : 0;
+							//rt_printf("x %d y %d rx %d ry %d\n", x, y, tableRatios[oscInd][0], tableRatios[oscInd][1]);
+							if (tableRatios[oscInd][0] == x && tableRatios[oscInd][1] == y)
+							{
+								tableRatios[oscInd][0] = TBL_MAX;
+								tableRatios[oscInd][1] = TBL_MAX;
+							}
+							else
+							{
+								tableRatios[oscInd][0] = x;
+								tableRatios[oscInd][1] = y;
+							}
+						}
+						else
+						{
+							tableRatios[oscInd][0] = __USAT(tableRatios[oscInd][0] + (x * TBL_INC), TBL_SAT);
+							tableRatios[oscInd][1] = __USAT(tableRatios[oscInd][1] + (y * TBL_INC), TBL_SAT);
+						}
+					}
+					/*rt_printf("goal x 0x%08x y 0x%08x max 0x%08x thirty 0x%08x\n", goalx, goaly, TBL_MAX, thirty);
+					rt_printf("0 goal 0x%08x\n", ___SMMUL(TBL_MAX  - goalx, TBL_MAX - goaly) << 1);
+					rt_printf("1 goal 0x%08x\n", ___SMMUL(goalx, TBL_MAX - goaly) << 1);
+					rt_printf("2 goal 0x%08x\n", ___SMMUL(TBL_MAX - goalx, goaly) << 1);
+					rt_printf("3 goal 0x%08x\n", ___SMMUL(goalx, goaly) << 1);*/
+					updateLCDelems(OBJ1, OBJ3);
+				}
+				break;
 				
 				case AMPENV:
 				{
+					//handleAmpEnvChange(inputInd, inc);
 					uint8_t ind = knobPos(KNOB1, inputInd);//-1;
 					updateUINT8val(&amp_env_knobs[oscInd].rate[0] + ind, inc, inputInd >= KNOB_BUT1, ind + OBJ1);
 
@@ -1651,36 +1528,65 @@ void handleKnobs()
 				}
 				break;
 				
-				case PITENV: done = 1;
-				case FILTENV:
+				case DUALENV1: isEnv2 = 0;
+				case DUALENV2:
 				{
-					PIT_ENV_KNOBS *curEnv = (done)? &pit_env_knobs[oscInd] : &filt_env_knobs[oscInd]; 
+					DUAL_ENV_KNOBS* curEnv = !isEnv2 ? &env1_knobs[oscInd] : &env2_knobs[oscInd];
+					int g_ind = knobPos(KNOB1, inputInd) >= 2;
 					switch(inputInd)
 					{
-						//look at different envelope point
-						case KNOB_BUT1: 
-						case KNOB1:
-							envInd = indexIncrement(envInd, unit_dir(inc), FREE_STAGES + 2);
-							//curLCD = OBJ1;
-							updateLCDelems(OBJ1, OBJ6);
-							break;
-						
-						//type/bypass
-						case KNOB_BUT2:
-						case KNOB2:
-							if(!done) TOGGLEBIT(oscInd, bitFECut); LCD_update[OBJ2] = 1; break;
-							
 						//pitch
+						case KNOB1:
 						case KNOB3:
-							inc = inc<<PITCH_FINE_RES;
-						case KNOB4:
-							inc = inc<<PITCH_FINE;
-							curEnv->pitch[envInd] = __SSAT(curEnv->pitch[envInd] + inc, 29);
-							LCD_update[OBJ3] = 1;
+							inc = inc << pitchShift;
+							curEnv->goal[envInd][g_ind] = __SSAT(curEnv->goal[envInd][g_ind] + inc, 29);
+							LCD_update[OBJ3 + 2 * g_ind] = 1;
 							break;
 						
-						//zero coarse pitch
-						case KNOB_BUT3: curEnv->pitch[envInd] = curEnv->pitch[envInd] & PITCH_MASK; LCD_update[OBJ3] = 1; break;
+						//coarse/fine toggle
+						case KNOB_BUT1:
+						case KNOB_BUT3:
+							if (is_quick)
+							{
+								pitchShift = (pitchShift == PITCH_COARSE) ? PITCH_FINE : PITCH_COARSE;
+							}
+							else
+							{
+								curEnv->goal[envInd][g_ind] = 0;
+								LCD_update[OBJ3 + 2 * g_ind] = 1;
+								break;
+							}
+							break;
+						
+						//send
+						case KNOB2:
+						case KNOB_BUT2:
+						case KNOB4:
+						case KNOB_BUT4:
+							int used;
+							do
+							{
+								used = 0;
+								curEnv->send[g_ind] = (ENV_ITEM)indexIncrement(curEnv->send[g_ind], unit_dir(inc), e_ENV_MAX);
+								for (int32_t j = 0; j < 2; ++j)
+								{
+									DUAL_ENV_KNOBS* checkKnobs = screenInd == DUALENV1 ? &env1_knobs[oscInd] : &env2_knobs[oscInd];
+									for (int32_t k = 0; k < 2; ++k)
+									{
+										if (j == isEnv2 && k == g_ind) continue;
+										if (curEnv->send[g_ind] == checkKnobs->send[k] && checkKnobs->send[k] != e_NONE)
+										{
+											used = 1;
+											break;
+										}
+									}
+								}
+							} while (used);
+							
+							//curLCD = OBJ1;
+							LCD_update[OBJ4 + 2 * g_ind] = 1;
+							break;
+						
 							
 						/* //record
 						case KNOB_BUT4: 
@@ -1690,7 +1596,11 @@ void handleKnobs()
 							LCD_update[OBJ4] = 1;
 							
 							break; */
-						
+						//edit glide
+						case KNOB5:
+						case KNOB_BUT5: updateUINT8val(&curEnv->glide[envInd], inc, inputInd >= KNOB_BUT1, OBJ1); 
+							break;
+
 						//time
 						case KNOB6:
 						case KNOB_BUT6:
@@ -1699,13 +1609,11 @@ void handleKnobs()
 								updateUINT8val(&curEnv->time[envInd], inc, inputInd >= KNOB_BUT1, OBJ6);
 								//curLCD = OBJ6;
 								
-								LCD_update[OBJ6] = 1;
+								LCD_update[OBJ1] = 1;
 								break;
 							}
 							
-						//edit glide
-						case KNOB5:
-						case KNOB_BUT5: updateUINT8val(&curEnv->glide[envInd], inc, inputInd >= KNOB_BUT1, OBJ5); break;
+						
 
 						
 					}
@@ -1737,9 +1645,8 @@ void handleKnobs()
 						//BPM inc size
 						case KNOB_BUT3:
 						
-							++indBPM &= 3;
-		
-							LCD_update[OBJ1] = 1;
+							indBPM = indexIncrement(indBPM, 1, 5);
+							LCD_update[OBJ3] = 1;
 							break;
 						
 						//BPM
@@ -1959,9 +1866,10 @@ void handleKnobs()
 						//edit current letter type (upper/lower/number)
 						case KNOB_BUT3:
 						case KNOB_BUT5:
-							if(saveName[saveNameInd] >= 'A') saveName[saveNameInd] = ' ';
+							if(saveName[saveNameInd] >= 'A' && saveName[saveNameInd] <= 'Z') saveName[saveNameInd] = 'a';
+							else if (saveName[saveNameInd] >= 'a' && saveName[saveNameInd] <= 'z') saveName[saveNameInd] = ' ';
 							else if(saveName[saveNameInd] == ' ') saveName[saveNameInd] = '0';
-							else if(saveName[saveNameInd] >= '0') saveName[saveNameInd] = '!';
+							else if(saveName[saveNameInd] >= '0' && saveName[saveNameInd] <= '9') saveName[saveNameInd] = '!';
 							else saveName[saveNameInd] = 'A';
 							
 							LCD_update[OBJ5] = 1;
@@ -2058,24 +1966,27 @@ void handleKnobs()
 				
 				case MIDICCS:
 				{
-					uint8_t ind = -1;
-					if(inputInd >= KNOB7 && inputInd <= KNOB6) ind = inputInd - KNOB1;
+					int ind = -1;
+					if(inputInd >= KNOB1 && inputInd <= KNOB6) ind = inputInd - KNOB1;
 					else if(inputInd >= KNOB_BUT1 && inputInd <= KNOB_BUT6) ind = inputInd - KNOB_BUT1;
 					if(ind != -1) updateUINT8val(&midi_knobs[oscInd].CC_nums[0] + ind, inc, inputInd >= KNOB_BUT1, ind + OBJ1);
 				}	
 				break;
-					
+				
 				case MODA:
 				{
-					uint8_t ind = knobPos(KNOB1, inputInd);
+					int8_t ind = knobPos(KNOB1, inputInd);
+					int32_t revised_ind = ind + (table_page > 0 ? 6 : 0);
+					//rt_printf("cont i %d rev i %d\n", ind, revised_ind);
 					/* if((inputInd - KNOB1) & 1)
 					if(inputInd >= KNOB1 && inputInd <= KNOB4) ind = inputInd - KNOB1;
 					else if(inputInd >= KNOB_BUT1 && inputInd <= KNOB_BUT4) ind = inputInd - KNOB_BUT1;
 					if(ind != -1) */
+					if(revised_ind < 8)
 					{
-						if(inputInd > KNOB6) mod_src[oscInd][ind] = (mod_src[oscInd][ind] == 0)? 1 : 0;
-						else mod_src[oscInd][ind] = indexIncrement(mod_src[oscInd][ind], inc, TOTAL_MODS);
-						updateSingleMod(ind, oscInd, mod_src[oscInd][ind]);
+						if(inputInd > KNOB6) mod_src[oscInd][revised_ind] = (mod_src[oscInd][revised_ind] == 0)? 1 : 0;
+						else mod_src[oscInd][revised_ind] = indexIncrement(mod_src[oscInd][revised_ind], inc, TOTAL_MODS);
+						updateSingleMod(revised_ind, oscInd, mod_src[oscInd][revised_ind]);
 						LCD_update[ind + OBJ1] = 1;
 					}
 				}		
@@ -2122,7 +2033,7 @@ void handleKnobs()
 						//page index
 						case KNOB1:
 						case KNOB_BUT1:
-						if(oscInd < POLY_CNT)
+							if(oscInd < POLY_CNT)
 							{
 								notesPage = (notesPage)? 0: 1;
 								//curLCD = OBJ1;
@@ -2141,7 +2052,7 @@ void handleKnobs()
 						default:
 							
 							stepInd = (notesPage << 2) + inputInd - ((inputInd > KNOB6)? KNOB_BUT3: KNOB3);
-							if(stepInd < childCnt(oscInd))
+							if(stepInd < childCnt[oscInd])
 							{
 								uint8_t child = firstChild[oscInd] + stepInd;
 								//LogTextMessage("h");
@@ -2172,39 +2083,56 @@ void handleKnobs()
 				case HARMONIC:
 				{
 					uint8_t ind = knobPos(KNOB1, inputInd);//-1;
-					updateUINT8val(&harmParams[oscInd].gainFund + ind, inc, inputInd >= KNOB_BUT1, ind + OBJ1);
-					if(ind == 1  && !*(&harmParams[oscInd].gainFund + ind))
+					updateUINT8val(&harmParams[oscInd][table_page].gainFund + ind, inc, inputInd >= KNOB_BUT1, ind + OBJ1);
+					if(ind == 1  && !*(&harmParams[oscInd][table_page].gainFund + ind))
 					{
-						*(&harmParams[oscInd].gainFund + ind) = 1;
+						*(&harmParams[oscInd][table_page].gainFund + ind) = 1;
 					}
-					HARM_update[oscInd] = -1;
+					queueOscTbl(HARM_update, oscInd, table_page);
+					GRAPH_update = 0;
 				}
 				break;
 				
 				case PHASE:
 				{
-					uint8_t pos = knobPos(KNOB1, inputInd);
-					if(pos < 4)
+					PHASE_KNOBS *phase = &phase_knobs[oscInd][table_page];
+					int32_t next_dir = 0;
+					int32_t next_inc = unit_dir(inc);
+					switch (inputInd)
 					{
-						pos = (pos & 1)? 1 : 0;
-						uint8_t *p = &phase_knobs[oscInd].before_harm + pos;
-						*p = !(*p);
-						LCD_update[OBJ1 + pos] = 1;
+						//page index
+						case KNOB1:
+						case KNOB_BUT1:
+							next_dir = 1;
+						case KNOB2:
+						case KNOB_BUT2:
+							incrementFileIndex(WAVE, next_inc, next_dir, &phaseFile[oscInd][table_page]);
+							updateLCDelems(OBJ1, OBJ2);
+							break;
+						case KNOB3:
+						case KNOB_BUT3:
+							updateUINT8val(&(phase->gain), inc, inputInd > KNOB8, OBJ3, 1);
+							break;
+						case KNOB4:
+							phase->phase += 2 * inc;
+							LCD_update[OBJ4] = 1;
+							break;
+						case KNOB_BUT4:
+							phase->phase = 0;
+							LCD_update[OBJ4] = 1;
+							break;
+						case KNOB5:
+						case KNOB_BUT5:
+							updateUINT8val(&(phase->partial), inc, inputInd > KNOB8, OBJ5, 0);
+							break;
+						case KNOB6:
+						case KNOB_BUT6:
+							phase->before_harm = !phase->before_harm;
+							LCD_update[OBJ6] = 1;
+							break;
 					}
-					else
-					{
-						pos = (pos & 1)? 1 : 0;
-						if(inputInd >= KNOB_BUT1)
-						{
-							*(&phase_knobs[oscInd].before_phase + pos) = 127;
-							LCD_update[OBJ3 + pos] = 1;
-						}
-						else 
-						{
-							updateUINT8val(&phase_knobs[oscInd].before_phase + pos, inc, 0, pos + OBJ3, 1);
-						}
-					}
-					HARM_update[oscInd] = -1;
+					queueOscTbl(HARM_update, oscInd, table_page);
+					GRAPH_update = 0;
 				}
 				break;
 
@@ -2215,11 +2143,10 @@ void handleKnobs()
 	}
 	++readInd &= 0x03;
 	
-	#endif
 }
 	
 
-void __attribute__(( noinline )) updatePitRatio()
+void updatePitRatio()
 {
 	static int32_t uInd = 0;
 	if((pit_ratio_update >> uInd) & 1)
@@ -2236,9 +2163,9 @@ void __attribute__(( noinline )) updatePitRatio()
 	uInd = indexIncrement(uInd, 1, 6);
 }
 		
-void __attribute__(( noinline )) updateSingleMod(uint8_t modType, uint8_t destParent, uint8_t sourceIndex)
+void updateSingleMod(uint8_t modType, uint8_t destParent, uint8_t sourceIndex)
 {
-	uint8_t children = childCnt(destParent);//(destParent < POLY_CNT)? NOTES_CNT : 1;
+	uint8_t children = childCnt[destParent];//(destParent < POLY_CNT)? NOTES_CNT : 1;
 	uint8_t firstDest = firstChild[destParent];
 	
 	int32_t *src = NULL;
@@ -2248,10 +2175,6 @@ void __attribute__(( noinline )) updateSingleMod(uint8_t modType, uint8_t destPa
 	{
 		case MOD_NONE: src = (modType == GATE_MOD)? &maxMod : &zeroMod; break;
 		case MOD_MAIN_OUT: src = &lastMain; break;
-		case MOD_AUDIO_L: 
-		case MOD_AUDIO_R:
-		case MOD_AUDIO_MX: 
-			src = &lastAudio[MOD_AUDIO_MX - sourceIndex]; break;
 	}
 	if(src)
 	{
@@ -2272,8 +2195,8 @@ void __attribute__(( noinline )) updateSingleMod(uint8_t modType, uint8_t destPa
 			if(eInd < 4) modSrc[modType][firstDest + child] = &kCCs[eInd][oInd];
 			else if(eInd == OSC_SRC) modSrc[modType][firstDest + child] = (srcInc && children == 1) ? &lastPolyCombo[oInd] : &lastSignal[sourceChild];
 			else if(eInd == AENV_SRC) modSrc[modType][firstDest + child] = (int32_t *)&amp_env[sourceChild].val;
-			else if(eInd == PENV_SRC) modSrc[modType][firstDest + child] = &pit_env[sourceChild].val;
-			else if(eInd == FENV_SRC) modSrc[modType][firstDest + child] = &filt_env[sourceChild].val; 
+			else if(eInd == PENV_SRC) modSrc[modType][firstDest + child] = &pit_env[sourceChild].val[0];
+			else if(eInd == FENV_SRC) modSrc[modType][firstDest + child] = &filt_env[sourceChild].val[0]; 
 			else modSrc[modType][firstDest + child] = &arp_env[sourceChild].val;
 			sourceChild += srcInc;
 		}
@@ -2347,7 +2270,7 @@ void updateAllMod(uint8_t first, uint8_t last)
 	}
 }
 
-void __attribute__((noinline)) updateArpTime(uint8_t osc, float newBPM)
+void updateArpTime(uint8_t osc, float newBPM)
 {
 	//LogTextMessage("o %u bpm %f", osc, newBPM);
 	if(newBPM > 9999) arpeggio[osc].BPM = 9999;
@@ -2362,14 +2285,14 @@ void __attribute__((noinline)) updateArpTime(uint8_t osc, float newBPM)
 		//LogTextMessage("%u sz", sz);
 		for(uint8_t dstOsc = 0; dstOsc < OSC_CNT; ++dstOsc)
 		{
-			if(dstOsc != osc) memcpy(&arpeggio[dstOsc].T, &arpeggio[osc].T, sz);
+			if(dstOsc != osc) memcpy_safe((uint8_t *)&arpeggio[dstOsc].T, (uint8_t*)&arpeggio[osc].T, sz);
 		}
 	}
 	//LCD_update[OBJ3] = 1;
 }
 
 
-void __attribute__((noinline)) resetArpPages(uint8_t firstOsc, uint8_t lastOsc)
+void resetArpPages(uint8_t firstOsc, uint8_t lastOsc)
 {
 	for(uint8_t osc = firstOsc; osc <= lastOsc; osc++)
 	{
@@ -2379,14 +2302,14 @@ void __attribute__((noinline)) resetArpPages(uint8_t firstOsc, uint8_t lastOsc)
 }
 
 
-uint8_t __attribute__(( noinline )) knobPos(uint8_t zeroKnob, uint8_t knobID)
+uint8_t knobPos(uint8_t zeroKnob, uint8_t knobID)
 {	
 	uint8_t ind = knobID - zeroKnob;
 	if(knobID > KNOB6) ind -= 8;
 	return ind;
 }
 
-uint8_t __attribute__(( noinline )) bounded(uint8_t val, int8_t inc, uint8_t min, uint8_t max)
+uint8_t bounded(uint8_t val, int8_t inc, uint8_t min, uint8_t max)
 {
 	int16_t num = val + inc;
 	if(num > max) return max;
@@ -2394,5 +2317,3 @@ uint8_t __attribute__(( noinline )) bounded(uint8_t val, int8_t inc, uint8_t min
 	else return num;
 	
 }
-
-#endif 

@@ -1,6 +1,8 @@
 #ifndef SYNTHSTRUCTS_H
 #define SYNTHSTRUCTS_H
 
+#include "settings.h"
+
 //parent osc structs
 
 struct AMP_ENV_KNOBS {
@@ -19,10 +21,11 @@ struct PIT_KNOBS {
 	uint8_t vel[NOTES_CNT];
 }; */
 
-struct PIT_ENV_KNOBS {
+struct DUAL_ENV_KNOBS {
 	uint8_t time[FREE_STAGES];
 	uint8_t glide[FREE_STAGES + 2];
-	int32_t pitch[FREE_STAGES + 2];	
+	int32_t goal[FREE_STAGES + 2][2];
+	ENV_ITEM send[2];
 };
 	
 struct PIT_RATIO_KNOBS {
@@ -61,9 +64,9 @@ struct MIDI_PARAMS {
 
 struct PHASE_KNOBS {
 	uint8_t before_harm;
-	uint8_t after_harm;
-	uint8_t before_phase;
-	uint8_t after_phase;
+	uint8_t gain;
+	uint8_t phase;
+	uint8_t partial;
 };
 	
 
@@ -80,7 +83,7 @@ struct AMP_ENV {
 struct PIT_ENV {
 	uint16_t stage;
 	uint16_t clock;
-	int32_t val;
+	int32_t val[2];
 };
 
 struct ARP_ENV {

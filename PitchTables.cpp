@@ -1,61 +1,63 @@
-#ifndef PITCH_TABLES_C
-#define PITCH_TABLES_C
+#include "settings.h"
+#include "pitchTables.h"
+#include "helperFunctions.h"
 
-#include "./settings.h"
-
-static uint32_t phase_width_incs[256][2] __attribute__ ((section (".sdram")));
-static uint32_t PHASEINCS[257] __attribute__ ((section (".sram")));
-static uint32_t ATTACK_K[128]; 
-static uint32_t SEEK[128];
-static uint32_t SEEK_S_RATE[128]; 
-static uint32_t GAIN[128] __attribute__ ((section (".sdram"))); 
-static uint32_t VELGAIN[128] __attribute__ ((section (".sdram")));
-static uint16_t TIME[128] __attribute__ ((section (".sdram")));
-static char screens[SCREEN_CNT][4][21] __attribute__ ((section (".sdram")));
-static char SCREENS[SCREEN_CNT][9] __attribute__ ((section (".sdram")));
-static char noteLabels[169][5] __attribute__ ((section (".sdram")));
-static int8_t big_group[8][3] __attribute__ ((section (".sdram")));
-static int8_t other_groups[24][4] __attribute__ ((section (".sdram")));
+uint32_t phase_width_incs[256][2];
+uint32_t PHASEINCS[257];
+uint32_t ATTACK_K[128]; 
+uint32_t SEEK[128];
+uint32_t SEEK_S_RATE[128]; 
+uint32_t GAIN[128]; 
+uint32_t VELGAIN[128];
+uint16_t TIME[128];
+char screens[SCREEN_CNT][4][ROW_CHAR_CNT];
+char SCREENS[SCREEN_CNT][10];
+char noteLabels[169][5];
+int8_t big_group[8][3];
+int8_t other_groups[24][4];
 uint8_t parents[OSC_CHILD_CNT];
 uint8_t firstChild[OSC_CNT];
-char chan_pins[4][3] __attribute__ ((section (".sdram")));
-char mx_pins[5][3] __attribute__ ((section (".sdram"))); 
-char led_pins[4][3] __attribute__ ((section (".sdram")));
-char lower_knob_pins[2][3] __attribute__ ((section (".sdram")));
-char upper_knob_pins[2][3] __attribute__ ((section (".sdram")));
 
-char saveCopyStr[3][7] __attribute__ ((section (".sdram")));
-char oscStr[6][5] __attribute__ ((section (".sdram")));
-char lvlStr[3][4] __attribute__ ((section (".sdram")));
-char arpNoteLeader[3][4] __attribute__ ((section (".sdram")));
-char yesNoStr[2][4] __attribute__ ((section (".sdram")));
-char onOffStr[2][4] __attribute__ ((section (".sdram")));
-char startStopStr[2][7] __attribute__ ((section (".sdram")));
-char copyWhat[2][4] __attribute__ ((section (".sdram")));
-char envStr[5][6] __attribute__ ((section (".sdram")));
-char filtStr[3][4] __attribute__ ((section (".sdram")));
-char stageStr[5][4] __attribute__ ((section (".sdram")));
-char notesStr[2][4] __attribute__ ((section (".sdram")));
-char trackStr[2][4] __attribute__ ((section (".sdram")));
-char velStr[3][7] __attribute__ ((section (".sdram")));
-char loopStr[4][6] __attribute__ ((section (".sdram")));
-char modStrA[5][5] __attribute__ ((section (".sdram")));
-char modStrB[9][4] __attribute__ ((section (".sdram")));
-char modStrO[6][3] __attribute__ ((section (".sdram")));
+char chan_pins[4][3];
+char mx_pins[5][3]; 
+char led_pins[4][3];
+char lower_knob_pins[2][3];
+char upper_knob_pins[2][3];
 
-char recStr[5] __attribute__ ((section (".sdram")));
-char timeStr[6] __attribute__ ((section (".sdram")));
-char typeStr[6] __attribute__ ((section (".sdram")));
-char favStr[2][21] __attribute__ ((section (".sdram")));
-char nts[12][4] __attribute__ ((section (".sdram")));
-char units[3][3] __attribute__ ((section (".sdram")));
+char saveCopyStr[3][7];
+char oscStr[6][5];
+char lvlStr[3][4];
+char arpNoteLeader[3][4];
+char yesNoStr[2][4];
+char onOffStr[2][4];
+char startStopStr[2][7];
+char copyWhat[2][4];
+char envStr[5][6];
+char filtStr[3][4];
+char stageStr[5][4];
+char notesStr[2][4];
+char trackStr[2][4];
+char velStr[3][7];
+char loopStr[4][6];
+char modStrA[5][5];
+char modStrB[9][4];
+char modStrO[6][3];
+
+char recStr[5];
+char timeStr[6];
+char typeStr[6];
+char favStr[2][21];
+char nts[12][4];
+char units[3][3];
+
+const char ENV_ITEM_STR[(int)e_ENV_MAX][5] = { "TBLX", "TBLY", "PIT", "FCUT", "FRES", "NONE" };
 
 
 const uint8_t noteLabelTypes[3] = {82, 139, 168};
 const uint8_t SET2 = 140;
 const uint8_t maxNoteLabelInd = 168;
 
-const uint16_t DATA_SZ[] = {256 * 2 * 4, 257 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 2, SCREEN_CNT * 4 * 21, SCREEN_CNT * 9, 169 * 5, 24, 96, 20, 6, 12, 15, 12, 6, 6, 
+const uint16_t DATA_SZ[] = {256 * 2 * 4, 257 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 4, 128 * 2, SCREEN_CNT * 4 * 21, SCREEN_CNT * 10, 169 * 5, 24, 96, 20, 6, 12, 15, 12, 6, 6, 
 	21,30, 12, 12, 8, 8, 14, 8, 30, 12, 20, 8, 8, 21, 24, 25, 36, 18, 5, 6, 6, 42, 48, 9}; 
 const int32_t DATA_CNT = 44;
 	
@@ -102,9 +104,9 @@ const int8_t BIG_GROUP[8][3] = {
 	{bitOsc, -1, 0},
 	{bitHarms, HARMONIC, EX_HARM},
 	{bitAEnv, AMPENV, 0},
-	{bitPEnv, PITENV, 0},
+	{bitPEnv, DUALENV1, 0},
 	{bitFilt, FILTER, EX_FILT},
-	{bitFEnv, FILTENV, 0},
+	{bitFEnv, DUALENV2, 0},
 	{bitArp, ARPEGSETUP, 0},
 	{bitMain, OUTS, 0}
 };
@@ -117,7 +119,7 @@ const int8_t OTHER_GROUPS[24][4] = {
 	{E_OSC, bitNotes, NOTES, 0}, 
 	{E_OSC, bitEnvs, MIDIINS, 0}, 
 	{E_OSC, bitKeyVel, MIDICCS, 0}, 
-	{E_OSC, bitHold, -1, EX_HOLD1},	
+	{MAINTOG, bitPoly16, -1, EX_POLY16},//{E_OSC, bitHold, -1, EX_HOLD1},
 	
 	{MAINTOG, bitMidiThru, -1, 0}, 								//lower left row
 	{MAINTOG, bitSolo, -1, 0}, 
@@ -128,8 +130,8 @@ const int8_t OTHER_GROUPS[24][4] = {
 				
 	{MAINTOG, bitRoute, -1, 0}, 	{MAINTOG, bitCopy, -1, 0}, 	//columns
 	{E_OSC, -1, -1, EX_PATSVLD}, 	{E_OSC, -1, -1, EX_PATRNDCLR}, 
-	{E_OSC, -1, FAVS, EX_FAV1},		{E_OSC, -1, FAVS, EX_FAV2},	
-	{E_OSC, -1, FAVS, EX_FAV3}, 	{E_OSC, -1, FAVS, EX_FAV4},		
+	{E_OSC, -1, -1, EX_FAV1},		{E_OSC, -1, -1, EX_FAV2},	
+	{E_OSC, -1, -1, EX_FAV3}, 		{E_OSC, -1, -1, EX_FAV4},		
 	{E_OSC, -1, -1, EX_TRIG_ON}, 	{E_OSC, -1, -1, EX_TRIG_OFF}
 };
 
@@ -390,11 +392,16 @@ const char DATA_noteLabels[169][5] = {
 	"15.8", "16.7", "17.7", "18.8", "19.9", "21.1", "22.4"
 };
 
-const char DATA_screens[SCREEN_CNT][4][21] = {
+const char DATA_screens[SCREEN_CNT][4][ROW_CHAR_CNT] = {
 	{
-		"@@@@@@@@@ @@@@@@@@@ ",
-		"@@@@@@@@@>@@@@@@@@@<",
-		"@@@@@@@@@ @@@@@@@@@ "
+		"@@@@@@@@@@@@@@@@@@@@",
+		"@@@@@@@@@@@@@@@@@@@@",
+		"@@@@@@@@@@@@@@@@@@@@"
+	},
+	{
+		"TBLX:@@@   TBLY:@@@ ",
+		"@@@@@@:@@@ @@@@@@:@@@",
+		"@@@@@@:@@@ @@@@@@:@@@",
 	},
 	{
 		" TIME: A:@@@  D:@@@ ",
@@ -408,9 +415,10 @@ const char DATA_screens[SCREEN_CNT][4][21] = {
 		
 	},
 	{
-		"STAGE:@@@ @@@@@@@@@@",
-		"GOAL:@@@@@@@        ",
-		"GLIDE:@@@ @@@@@@@@@@"
+		"STAGE:@@@           ",
+		"A: VAL:@@@@@@@  @@@@",
+		"B: VAL:@@@@@@@  @@@@",
+		"GLIDE:@@@ @@@@@@@@@@"		
 	},
 	{
 		"TYPE:@@@@@ TRACK:@@@",
@@ -418,9 +426,10 @@ const char DATA_screens[SCREEN_CNT][4][21] = {
 		"RES:@@@             ",
 	},
 	{
-		"STAGE:@@@ @@@@@@@@@@",
-		"GOAL:@@@@@@@        ",
-		"GLIDE:@@@ @@@@@@@@@@"
+		"STAGE:@@@           ",
+		"A: VAL:@@@@@@@  @@@@",
+		"B: VAL:@@@@@@@  @@@@",
+		"GLIDE:@@@ @@@@@@@@@@"	
 	},
 	{
 		"STEPS:@@  TYPE:@@@@@",
@@ -439,9 +448,9 @@ const char DATA_screens[SCREEN_CNT][4][21] = {
 		"@@@@@@@@@ @@@@@@@@@ "
 	},
 	{
-		" DIR: @@@@@@@@@ *CLR",
-		" EDIT *a>A     MOVE ",
-		"  NAME:@@@@@@ *SAVE "
+		"DIR: @@@@@@@@@  *CLR",
+		"EDIT *aA1       MOVE",
+		"NAME: @@@@@@   *SAVE"
 	},
 	{
 		" MIDICH:@@@ HKEY:@@@",
@@ -459,9 +468,9 @@ const char DATA_screens[SCREEN_CNT][4][21] = {
 		"                    "
 	},
 	{
-		"PIT:@@@@@ FCUT:@@@@@",
-		"AMP:@@@@@ FRES:@@@@@",
-		"GAT:@@@@@ ARPT:@@@@@"
+		"@@@@@@@@@@ @@@@@@@@@@",
+		"@@@@@@@@@@ @@@@@@@@@@",
+		"@@@@@@@@@@ @@@@@@@@@@",
 	},
 	{
 		"NOTES:@@@   EDIT:@@@",
@@ -484,9 +493,10 @@ const char DATA_screens[SCREEN_CNT][4][21] = {
 		"G.LAST @@@ COUNT @@@"
 	},
 	{
-		"PRE-HARM  POST-HARM ",
-		" TOG:@@@   TOG:@@@  ",
-		" @@@@@@    @@@@@@   "
+		"@@@@@@@@@@@@@@@@@@@@",
+		"@@@@@@@@@@@@@@@@@@@@",
+		"@@@@@@@@@@@@@@@@@@@@",
+		"LVL: @@@  SHFT: @@@ "
 	},
 	{
 		"(SELF)      @@@@    ",
@@ -496,11 +506,19 @@ const char DATA_screens[SCREEN_CNT][4][21] = {
 
 };
 
-const char DATA_SCREENS[SCREEN_CNT][9] = {
-	"WAV TABL", " AMP ENV", " PIT/VEL", " PIT ENV", "  FILTER", "FILT ENV", 
-	"ARP INIT", "ARPSTEPS", "PATCH LD", "PATCH SV", "MIDI INS", "MIDI CCS", 
-	"  OUTPUT", "MOD SRCS", "  NOTES ", " ARP REC", "FAVORITE", "HARMONIC",
-	"   PHASE", "PIT RTIO"
+
+const char DATA_SCREENS[SCREEN_CNT][10] = {
+	" WAV TABL", "TABL POS", " AMP ENV", " PIT/VEL", " PIT ENV", "FILTER", " FILT ENV", 
+	" ARP INIT", "ARPSTEPS", " PATCH LD", " PATCH SV", "MIDI INS", " MIDI CCS", 
+	"OUTPUT", " MOD SRCS", "NOTES", " ARP REC", "FAVORITE", "HARMONIC",
+	"PHASE", " PIT RTIO"
+};
+
+
+
+const char MOD_DESTS[MOD_CNT][5] = {
+	" PIT", "FCUT", " AMP", "TBLX", "GATE", "TBLY",
+	"FRES", "ARPT"
 };
 
 #endif
@@ -557,4 +575,4 @@ uint32_t __attribute__( ( always_inline ) ) getPitch(uint32_t goalPhase)
 	return p_ind;
 }
 
-#endif 
+

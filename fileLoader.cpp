@@ -1,21 +1,25 @@
-#ifndef FILELOADER_C
-#define FILELOADER_C
+
+#include <Bela.h>
+#include "fileLoader.h"
+#include <string.h>
+#include <fcntl.h>
+#include <dirent.h>
+#include "settings.h"
+#include "synthStructs.h"
+#include "helperFunctions.h"
+#include "synthVariables.h"
+#include "pitchTables.h"
+#include "synthControls.h"
 
 
-#include "./settings.h"
-#include "./helperfunctions.c"
-#include "./synthControls.h"
-
-browseObj filBrowser[FILTYPES]; 
+struct browseObj filBrowser[FILTYPES]; 
 const char filError[6] = "file?";
 
 
-void initFILES(uint8_t fType)
+int initFILES(uint8_t fType)
 {	
-	char tPath[MAXDPATHLEN];
 	char basePath[MAXDPATHLEN];
 	char curDir[7];
-	char browserLab;
 	browseCnt[fType].files = 0;
 	browseCnt[fType].dirs = 0;
 	
@@ -23,7 +27,7 @@ void initFILES(uint8_t fType)
 	if(fType == WAVE)
 	{
 		strcpy(curDir, WAVE_FOLDER);
-		browseCnt[fType].dirs = 1;
+		/*browseCnt[fType].dirs = 1;
 		strcpy(dirs[fType][0].name, "AUDIO");
 		dirs[fType][0].numFiles = 10;
 		dirs[fType][0].insertAfter = &files[fType][9];
@@ -32,17 +36,17 @@ void initFILES(uint8_t fType)
 
 		for(uint32_t i = 0; i < 10; ++i)
 		{
-			filsList *cur = &files[fType][i];
+			struct filsList *cur = &files[fType][i];
 			++browseCnt[fType].files;
 			strcpy(cur->name, auds[i]);
 			cur->filInd = i + 1;
 			cur->dirInd = 0;
 			if(i > 0) cur->prev = &files[fType][i-1];
 			cur->next = &files[fType][i+1];
-		}
+		}*/
 		
-		/* for(uint8_t curOsc = 0; curOsc < OSC_CNT; curOsc++) 
-			curWavFile[curOsc] = &files[fType][0]; */
+		/*for(uint8_t curOsc = 0; curOsc < OSC_CNT; curOsc++) 
+			curWavFile[curOsc] = &files[fType][0];*/
 		
 	}
 	else if(fType == PATCH)
@@ -52,12 +56,14 @@ void initFILES(uint8_t fType)
 	}
 	else
 	{
-		LogTextMessage("%s", filError);
-		return;
+		//rt_printf("ftype %u %s\n", fType, filError);
+		return 0;
 	}
 	
 	//make a path to the proper starting folder (root + file type)
-	makeTempPath((char*)ROOT_FOLDER, (char*)curDir, basePath);
+	makeTempPath((char*)ROOT_FOLDER, curDir, basePath);
+
+	//printf("scanning %s\n", basePath);
 
 	//map the entire directory
 	scanDir(basePath, fType);
@@ -69,18 +75,18 @@ void initFILES(uint8_t fType)
 		files[fType][tInd].next = &files[fType][0];
 		files[fType][0].prev = &files[fType][tInd];
 	}
+	return 1;
 }
 
-void __attribute__(( noinline )) scanDir(char *path, uint8_t fType)
+void scanDir(char *path, uint8_t fType)
 {
-	uint8_t done;
 	static uint8_t filesInDir;
 	static uint8_t dirInd;
 	char tStr[MAXDPATHLEN];
-	DIR dir;
+	DIR* dir;
 	
 	//open the path
-	if(f_opendir(&dir, path) != FR_OK) return;	
+	if(!(dir = opendir(path))) return;	
 	
 	//get the current directory index
 	dirInd = browseCnt[fType].dirs;
@@ -95,19 +101,12 @@ void __attribute__(( noinline )) scanDir(char *path, uint8_t fType)
 	filesInDir = 0;
 	
 	//loop through and add all non-directory files
-	done = 0;
-	while(!done)	
+	while((filBrowser[fType].curObj = readdir(dir)))
 	{
-		//read the next file
-		if(f_readdir(&dir, &filBrowser[fType].curObj) != FR_OK) return; 
-		
-		//end of directory: go to next step
-		else if(filBrowser[fType].curObj.fname[0] == 0) done = 1; 
-	
 		//valid file: add it to the list
-		else if(filBrowser[fType].curObj.fattrib != AM_DIR && 
-			strncmp(&filBrowser[fType].curObj.fname[0], FILES_LIST, strlen(FILES_LIST)) != 0 && 
-			strncmp(&filBrowser[fType].curObj.fname[0], DIRS_LIST, strlen(DIRS_LIST)) != 0) 		
+		if(filBrowser[fType].curObj->d_type != DT_DIR &&
+			strncmp(filBrowser[fType].curObj->d_name, FILES_LIST, strlen(FILES_LIST)) != 0 && 
+			strncmp(filBrowser[fType].curObj->d_name, DIRS_LIST, strlen(DIRS_LIST)) != 0) 		
 		{
 			//get the current file index
 			uint8_t fileInd = browseCnt[fType].files + filesInDir;
@@ -116,8 +115,8 @@ void __attribute__(( noinline )) scanDir(char *path, uint8_t fType)
 			filesInDir++;
 			
 			//copy the filename and make sure it's null terminated
-			strncpy(files[fType][fileInd].name, filBrowser[fType].curObj.fname, MAXFNAMELEN);	
-			files[fType][fileInd].name[sizeof(files[fType][fileInd].name)-1] = '\0';
+			strncpy(files[fType][fileInd].name, filBrowser[fType].curObj->d_name, MAXFNAMELEN);	
+			files[fType][fileInd].name[strlen(filBrowser[fType].curObj->d_name)] = '\0';
 			
 			//set the file's directory index
 			files[fType][fileInd].dirInd = dirInd;
@@ -142,59 +141,49 @@ void __attribute__(( noinline )) scanDir(char *path, uint8_t fType)
 	
 	//increment the number of files overall
 	browseCnt[fType].files += filesInDir;
-		
+
 	//reset the directory 
-	if(f_opendir(&dir, path) != FR_OK) return;
-	done = 0;
+	closedir(dir);
+	if (!(dir = opendir(path))) return;
+
 	
 	//loop through again to search sub-directories
-	while(!done)	
-	{
-		//read the next file
-		if(f_readdir(&dir, &filBrowser[fType].curObj) != FR_OK) return;		
-
-		//end of dir: exit
-		if(filBrowser[fType].curObj.fname[0] == 0) done = 1;	
-		
+	while ((filBrowser[fType].curObj = readdir(dir)))
+	{		
 		//valid subdirectory
-		else if(filBrowser[fType].curObj.fname[0] != '.' && filBrowser[fType].curObj.fattrib == AM_DIR)	
+		if(filBrowser[fType].curObj->d_name[0] != '.' && filBrowser[fType].curObj->d_type == DT_DIR)
 		{
 			//get the new directory's path
-			makeTempPath(path, filBrowser[fType].curObj.fname, tStr);
+			makeTempPath(path, filBrowser[fType].curObj->d_name, tStr);
 			
 			//scan the new directory
 			scanDir(tStr, fType);	
 		}
 	}
+	closedir(dir);
 } 
 
 
-void __attribute__(( noinline )) incrementFileIndex(uint8_t fType, int8_t moveAmt, uint8_t findDir)
+void incrementFileIndex(uint8_t fType, int8_t moveAmt, uint8_t findDir, filsList **ptr)
 {
-	uint8_t fileInd;
-	filsList *startFile;
-	filsList *curFile;
+	struct filsList *startFile;
+	struct filsList *curFile;
 	uint8_t steps;
 	
+	if (ptr == NULL)
+	{
+		if (fType == WAVE) ptr = &curWavFile[oscInd][table_page];
+		else if (fType == PATCH) ptr = &curPatchFile;
+	}
+	startFile = *ptr;
 	
 	//make sure there's anything useful to do	
 	if(browseCnt[fType].files == 0 ||browseCnt[fType].dirs == 0 || (browseCnt[fType].dirs < 2 && findDir)) return;
 	
-	//set the starting file index depending on the file type
 
-	if(fType == WAVE) startFile = curWavFile[oscInd];
-	else if(fType == PATCH) startFile = curPatchFile;
-/* 	if(fType == WAVE) startFile = curWavFile[oscInd];
-	else if(fType == PATCH) startFile = curPatchFile;
-	else
-	{
-		//LogTextMessage("file type? %d", fType);
-		return;
-	} */
-	
 	curFile = startFile;
 	steps = (moveAmt < 0)? -moveAmt: moveAmt;
-	//LogTextMessage("%d", moveAmt);
+	//rt_printf("%d", moveAmt);
 	if(steps > 0)
 	{
 		do
@@ -208,51 +197,35 @@ void __attribute__(( noinline )) incrementFileIndex(uint8_t fType, int8_t moveAm
 	
 	//set the starting file index depending on the file type
 	
-	if(fType == WAVE) curWavFile[oscInd] = curFile;
-	else if(fType == PATCH) curPatchFile = curFile;
-	else
-	{
-		//LogTextMessage("file type? %d", fType);
-		return;
-	}
+	*ptr = curFile;
 }
 
-void setFileIndexFromName(uint8_t fType, uint8_t osc, char *fName)
+void setFileIndexFromName(uint8_t fType, filsList **ptr, const char *fName)
 {
-	char name[MAXFNAMELEN];
-	filsList *curFile;
+	struct filsList *curFile;
     
 	//make sure there's useful data
 	if(browseCnt[fType].files == 0 ||browseCnt[fType].dirs == 0) return;
 	
 	curFile = &files[fType][0];
-	
+	if (fType == WAVE) *ptr = curFile;
+
 	//find the target file/directory indexes........................................................................................................
 	for(uint8_t i = 0; i < browseCnt[fType].files; ++i)
 	{			
 		if(strcmp(curFile->name, fName) == 0)
 		{
-			if(fType == WAVE)curWavFile[osc] = curFile;
-			else if(fType == PATCH) 
-			{
-				//LogTextMessage("f");
-				curPatchFile = curFile;
-			}
-			else
-			{				
-				//LogTextMessage("what file? %d", fType);
-			}
+			*ptr = curFile;
 			return;
 		}
 		curFile = curFile->next;
 	}
-	LogTextMessage("%s", filError);
-	curFile = &files[fType][0]; 
+	rt_printf("couldn't find file %s\n", fName);
 }
 
 
 /* 
-void __attribute__(( noinline )) setCurFile(filsList *curFile, uint8_t fType)
+void setCurFile(filsList *curFile, uint8_t fType)
 {
 	if(fType == WAVE) curFile = curWavFile[osc];
 	else if(fType == PATCH) curFile = curPatchFile;
@@ -261,13 +234,12 @@ void __attribute__(( noinline )) setCurFile(filsList *curFile, uint8_t fType)
 
 uint8_t savePatch()
 {
-	UINT bytesRead;
 	char path[MAXDPATHLEN + MAXFNAMELEN];
 	char reviseName[MAXFNAMELEN];
 	uint8_t fileInd;
 	
 	//get the save name (ignore trailing spaces)
-	for(uint8_t i = MAXFNAMELEN-2; i >= 0; i--)
+	for(int32_t i = MAXFNAMELEN-2; i >= 0; i--)
 	{
 		if(saveName[i] != ' ')
 		{
@@ -299,8 +271,8 @@ uint8_t savePatch()
 	//otherwise insert it within the linked list
 	else
 	{
-		filsList *nextFile;
-		filsList *prevFile;
+		struct filsList *nextFile;
+		struct filsList *prevFile;
 		
 		//if there were already files in the directory, add it after the last one
 		if(dirs[PATCH][saveDirInd].insertAfter != NULL)
@@ -313,7 +285,7 @@ uint8_t savePatch()
 		{
 			uint8_t foundDir = 0;
 			nextFile = &files[PATCH][0];
-			filsList *firstFile = nextFile;
+			struct filsList *firstFile = nextFile;
 			
 			//increment until we find either a higher directory or any directory after the save directory (in case we looped back to the beginning)
 			while((foundDir == 0 || nextFile->dirInd == saveDirInd) && nextFile->dirInd <= saveDirInd)
@@ -348,11 +320,11 @@ uint8_t savePatch()
 	
 	
 	//create the file
-	if(f_open(&filBrowser[PATCH].curFile, path, FA_CREATE_ALWAYS | FA_READ | FA_WRITE) != FR_OK) return 0;
+	if((filBrowser[PATCH].curFile = open(path, O_CREAT | O_RDWR)) < 0) return 0;
 	
 	if(!writeReadPatch(1)) curPatchFile = &files[PATCH][fileInd];
 	
-	f_close(&filBrowser[PATCH].curFile);
+	close(filBrowser[PATCH].curFile);
 	
 	//set the new file as the current loaded patch index
 	
@@ -367,11 +339,11 @@ uint8_t savePatch()
 
 uint32_t save_data_arrays()
 {
-	LogTextMessage("s");
+	//rt_printf("s");
 	char path[50];
 	char file[] = "DATA_DO_NOT_DELETE";
-	FIL *DATA_file;
-	UINT bytesRead;
+	int DATA_file;
+	int bytesWritten;
 
 	const void *DATA_SRC[] = {DATA_phase_width_incs, DATA_PHASEINCS, DATA_ATTACK_K, DATA_SEEK, DATA_SEEK_S_RATE, DATA_GAIN, DATA_VELGAIN, DATA_TIME, DATA_screens, DATA_SCREENS, DATA_noteLabels, BIG_GROUP, OTHER_GROUPS, DATA_parents, DATA_firstChild, 
 		DATA_chan_pins, DATA_mx_pins, DATA_led_pins, DATA_lower_knob_pins, DATA_upper_knob_pins, 
@@ -380,27 +352,25 @@ uint32_t save_data_arrays()
 	makeTempPath((char*)ROOT_FOLDER, file, path);
 	
 	//create the file
-	if(f_open(DATA_file, path, FA_CREATE_ALWAYS | FA_READ | FA_WRITE) != FR_OK) return 0;
+	if ((DATA_file = open(path, O_CREAT | O_RDWR)) < 0) return 0;
 	
 	for(int32_t i = 0; i < DATA_CNT; ++i)
 	{
-		void *p = (void *)DATA_SRC[i];
-		uint16_t left = DATA_SZ[i];
-		uint16_t write;
+		uint8_t *p = (uint8_t *)DATA_SRC[i];
+		int left = DATA_SZ[i];
+		int to_write;
 		
 		while(left)
 		{
-			write = left;
-			if(write > 256) write = 256;
-			
-			if(f_write(DATA_file, p, write, &bytesRead) != FR_OK) return 0;
-			p += write;
-			left -= write;
+			to_write = left > 256 ? 256 : left;
+			if ((bytesWritten = write(DATA_file, p, to_write)) < to_write) return 0;
+			p += bytesWritten;
+			left -= bytesWritten;
 		}
 	}
 	
-	f_close(DATA_file);
-	LogTextMessage("sv");
+	close(DATA_file);
+	//rt_printf("sv");
 	return 1;
 	 
 	//const char noteLabels[169][5];
@@ -413,11 +383,11 @@ uint32_t save_data_arrays()
 
 uint32_t read_data_arrays()
 {
-	//LogTextMessage("s");
+	//rt_printf("s");
 	char path[50];
 	char file[] = "DATA_DO_NOT_DELETE";
-	FIL *DATA_file;
-	UINT bytesRead;
+	int DATA_file;
+	int bytesRead;
 	
 	const void *DATA_DST[] = {phase_width_incs, PHASEINCS, ATTACK_K, SEEK, SEEK_S_RATE, GAIN, VELGAIN, TIME, screens, SCREENS, noteLabels, big_group, other_groups, parents, firstChild, 
 		chan_pins, mx_pins, led_pins, lower_knob_pins, upper_knob_pins, 
@@ -427,30 +397,30 @@ uint32_t read_data_arrays()
 	makeTempPath((char*)ROOT_FOLDER, file, path);
 	
 	//create the file
-	if(f_open(DATA_file, path, FA_READ) != FR_OK) return 0;
+	if((DATA_file = open(path, O_RDONLY)) < 0) return 0;
 	
 	for(int32_t i = 0; i < DATA_CNT; ++i)
 	{
-		void *p = (void *)DATA_DST[i];
+		int8_t *p = (int8_t *)DATA_DST[i];
 		uint16_t left = DATA_SZ[i];
-		uint16_t read;
+		uint16_t to_read;
 		
 		while(left)
 		{
-			read = left;
-			if(read > 256) read = 256;
+			to_read = left;
+			if(to_read > 256) to_read = 256;
 			
-			if(f_read(DATA_file, p, read, &bytesRead) != FR_OK) return 0;
-			p += read;
-			left -= read;
+			bytesRead = read(DATA_file, p, to_read);
+			p += to_read;
+			left -= to_read;
 		}
 		
 	}
 	
-	f_close(DATA_file);
+	close(DATA_file);
 	
 	
-	//LogTextMessage("e");
+	//rt_printf("e");
 	return 1;
 	 
 	//const char noteLabels[169][5];
@@ -460,22 +430,22 @@ uint32_t read_data_arrays()
 
 
 //helpers
-void  __attribute__(( noinline )) makeTempPath(char *basePath, char *newChunk, char *outputStr)
+void  makeTempPath(char *basePath, char *newChunk, char *outputStr)
 {
-	if(strcmp(basePath, outputStr) != 0) strcpy(outputStr, basePath);
-	if(strcmp(outputStr, "") != 0) strcat(outputStr, "/");
+	strcpy(outputStr, basePath);
+	if(strlen(outputStr)) strcat(outputStr, "/");
 	strcat(outputStr, newChunk);
 }
 
-void __attribute__(( noinline )) splitDirFromPath(char *dir, char *path)
+void splitDirFromPath(char *dir, char *path)
 {
 	strcpy(dir, "");
-	uint8_t endInd = strlen(path)-1;
-	for(uint8_t ind = endInd; ind >= 0; ind--)
+	int32_t endInd = strlen(path)-1;
+	for(int32_t ind = endInd; ind >= 0; ind--)
 	{
 		if(path[ind] == '/')
 		{
-			uint8_t length = endInd-ind;
+			int32_t length = endInd-ind;
 			if(length >= MAXFNAMELEN-1) length = MAXFNAMELEN-1;
 			strncpy(dir, path + (ind+1), length+1); 
 			break;
@@ -486,58 +456,57 @@ void __attribute__(( noinline )) splitDirFromPath(char *dir, char *path)
 
 
 
-void  __attribute__(( noinline )) favAction(uint8_t ind, uint8_t writeIt)
+void  favAction(uint8_t ind, uint8_t writeIt)
 {
-	//LogTextMessage("h");
-
+	//rt_printf("h");
+	int bytesRead;
 	char path[MAXDPATHLEN];
 	char patch[MAXFNAMELEN];
-	UINT bytesRead;
-	uint8_t mode = (writeIt)? (FA_WRITE | FA_OPEN_ALWAYS) : (FA_READ | FA_OPEN_EXISTING);
-	uint8_t res;
+	uint8_t mode = (writeIt)? (O_WRONLY | O_CREAT) : (O_RDONLY);
 	makeTempPath((char*)ROOT_FOLDER, (char*)FAVS_FILE, path);
-	//LogTextMessage("p %s", path);
-	res = f_open(&filBrowser[PATCH].curFile, path, mode);
-	if(!res) 
+	//rt_printf("p %s", path);
+
+	if((filBrowser[PATCH].curFile = open(path, mode)))
 	{
-		res = f_lseek(&filBrowser[PATCH].curFile, MAXFNAMELEN * ind);
-		if(writeIt) res =  f_write(&filBrowser[PATCH].curFile, curPatchFile->name, MAXFNAMELEN, &bytesRead);
-		else res = f_read(&filBrowser[PATCH].curFile, &patch, MAXFNAMELEN, &bytesRead);
+		lseek(filBrowser[PATCH].curFile, MAXFNAMELEN * ind, SEEK_CUR);
+		if(writeIt) bytesRead = write(filBrowser[PATCH].curFile, curPatchFile->name, MAXFNAMELEN);
+		else bytesRead = read(filBrowser[PATCH].curFile, &patch, MAXFNAMELEN);
 	}
-	f_close(&filBrowser[PATCH].curFile);
+	close(filBrowser[PATCH].curFile);
 	
-	if(!res && !writeIt)
+	if(!writeIt)
 	{
-		//LogTextMessage("%s", patch);
-		setFileIndexFromName(PATCH, 0, patch);
-		FIL_update[MAINTOG] = 1;
+		//rt_printf("%s", patch);
+		setFileIndexFromName(PATCH, &curPatchFile, patch);
+		FIL_update |= (1 << MAIN_FIL);
 	}
 
 }
 
 
-uint8_t __attribute__(( noinline )) patchReadWrite(void *var, uint16_t size, uint8_t isWrite)
+uint32_t patchReadWrite(void *var, uint16_t size, uint8_t isWrite)
 {
-	UINT bytes;
-	if(isWrite) return f_write(&filBrowser[PATCH].curFile, var, size, &bytes);
-	else return f_read(&filBrowser[PATCH].curFile, var, size, &bytes);
+	if(isWrite) return write(filBrowser[PATCH].curFile, var, size);
+	else return read(filBrowser[PATCH].curFile, var, size);
 }
 	
 
 	
-uint8_t __attribute__(( noinline )) writeReadPatch(uint8_t isWrite)
+uint8_t writeReadPatch(uint8_t isWrite)
 {
-	
-	UINT bytes;
-
+	uint32_t bytes;
 	for(uint8_t i = 0; i < ptrCnt; ++i)
 	{
 		uint16_t rem = ptrSizes[i];
 		char *pos = (char *)varPtrs[i];
 		while(rem)
 		{
-			uint8_t amt = (rem < 200)? rem: 200;
-			patchReadWrite(pos, amt, isWrite);
+			uint32_t amt = (rem < 200)? rem: 200;
+			bytes = patchReadWrite(pos, amt, isWrite);
+			if (bytes != amt)
+			{
+				rt_printf("patch read ptr %u expected %u bytes, read %u bytes\n", i, amt, bytes);
+			}
 			/* if(isWrite)  f_write(&filBrowser[PATCH].curFile, pos, amt, &bytes);
 			else  f_read(&filBrowser[PATCH].curFile, pos, amt, &bytes); */
 			pos += amt;
@@ -546,76 +515,174 @@ uint8_t __attribute__(( noinline )) writeReadPatch(uint8_t isWrite)
 	}
 	
 	//bigger/weirder osc parent stuff
-	for(uint8_t i = 0; i < OSC_CNT; ++i)
+	for(int32_t i = 0; i < OSC_CNT; ++i)
 	{
-		char wavFil[MAXFNAMELEN];
-		//patchReadWrite(&arpeggio[i], sizeof(arpeggio[i]), isWrite);//) return 1;
-		if(isWrite) strcpy(wavFil, curWavFile[i]->name);
-		patchReadWrite(wavFil, MAXFNAMELEN, isWrite);//) return 1;		
-		if(!isWrite) setFileIndexFromName(WAVE, i, wavFil);	
+		for (int32_t j = 0; j < TABLE_CNT; ++j)
+		{
+			char wavFil[MAXFNAMELEN];
+			char phaseFil[MAXFNAMELEN];
+			//patchReadWrite(&arpeggio[i], sizeof(arpeggio[i]), isWrite);//) return 1;
+			if (isWrite)
+			{
+				strcpy(wavFil, curWavFile[i][j]->name);
+				strcpy(phaseFil, phaseFile[i][j]->name);
+			}
+			bytes = patchReadWrite(wavFil, MAXFNAMELEN, isWrite);
+			bytes += patchReadWrite(phaseFil, MAXFNAMELEN, isWrite);//) return 1;	
+			if (bytes < 2 * MAXFNAMELEN)
+			{
+				rt_printf("patch files expected %u bytes, read %u bytes\n", 2 * MAXFNAMELEN, bytes);
+			}
+			if (!isWrite)
+			{
+				setFileIndexFromName(WAVE, &curWavFile[i][j], wavFil);
+				setFileIndexFromName(WAVE, &phaseFile[i][j], phaseFil);
+			}
+		}
+	}
+	return 0;
+}
+
+void readWaveFile(filsList* to_read, int8_t* data_ptr)
+{
+	char path[MAXDPATHLEN + MAXFNAMELEN];
+	
+	//make a path to the file
+	makeTempPath(dirs[WAVE][to_read->dirInd].path, to_read->name, path);
+
+	//printf("loading file %s\n", path);
+
+	//open the file
+	if ((filBrowser[WAVE].curFile = open(path, O_RDONLY)) < 0) return;
+
+	//read the file
+	int bytesLeft = TABLE_FULL_SIZE * 4;
+	int bytesRead = 0;
+	int fsize = 0;
+	int8_t* p = data_ptr;
+
+	off_t currentPos = lseek(filBrowser[WAVE].curFile, (size_t)0, SEEK_CUR);
+	fsize = (int)lseek(filBrowser[WAVE].curFile, (size_t)0, SEEK_END);
+	lseek(filBrowser[WAVE].curFile, currentPos, SEEK_SET);
+
+	//printf("file size %d (expected %d)\n", fsize, bytesLeft);
+
+	if (fsize < bytesLeft) //if the file is smaller than expected, only read in the length of the file
+		bytesLeft = fsize;
+
+	while (bytesLeft > 0)
+	{
+		bytesRead = read(filBrowser[WAVE].curFile, p, bytesLeft);
+		bytesLeft -= bytesRead;
+		p += bytesRead;
 	}
 
+	close(filBrowser[WAVE].curFile);
 }
 
 
-void __attribute__(( noinline )) checkFileQueue()
+void checkFileQueue()
 {
 	static uint8_t curFIL = 0;
 
-	if(FIL_update[curFIL] > 0)
+	if(FIL_update & (1 << curFIL))
 	{
-		//LogTextMessage("f %u", curFIL);
-		FIL_update[curFIL] = 0;
+		//rt_printf("f %u", curFIL);
+		FIL_update &= ~(1 << curFIL);
 		 
 		char path[MAXDPATHLEN + MAXFNAMELEN];
-		filsList *curFile;
-		UINT bytesRead;
+		struct filsList *curFile;
+		int bytesRead = 0;
 		uint8_t fType;
 		uint8_t skip_it = 0;
+		int curOsc = -1;
+		int curTbl = -1;
 
-		if(curFIL < OSC_CNT)
+		if(getOscTblInd(curFIL, curOsc, curTbl))
 		{
+			//printf("loading osc %d table %d\n", curOsc, curTbl);
 			fType = WAVE;
-			curFile = curWavFile[curFIL];
-			HARM_update[curFIL] = -1;
-			toggles[curFIL] &= ~(((1 << 5) - 1) << bitAudio);
+			curFile = curWavFile[curOsc][curTbl];
+			
+			//toggles[curOsc] &= ~(((1 << 5) - 1) << bitAudio);
 
-			if(curFile->dirInd == 0)
+			//printf("getting dir ind %d\n", curFile->dirInd);
+
+			/*if(curFile->dirInd == 0)
 			{	
-				toggles[curFIL] |= ((((curFile->filInd - 1) << 1) | 1) << bitAudio);
+				toggles[curOsc] |= ((((curFile->filInd - 1) << 1) | 1) << bitAudio);
 				skip_it = 1;
-			}
+			}*/
 		}
 		else
 		{
+			//printf("loading patch\n");
 			fType = PATCH;
 			curFile = curPatchFile;
 		}
+
+		
 		
 		//make sure there's useful data
 		if(!skip_it && browseCnt[fType].files)
 		{
+			//printf("getting path %d\n", curOsc);
+			
 			//make a path to the file
 			makeTempPath(dirs[fType][curFile->dirInd].path, curFile->name, path);													
+			
+			//printf("loading file %s\n", path);
+			
 			//open the file
-			if(f_open(&filBrowser[fType].curFile, path, FA_READ | FA_OPEN_EXISTING) != FR_OK) return;
+			if((filBrowser[fType].curFile = open(path, O_RDONLY)) < 0) return;
 		
 			//read the file
 			if(fType == WAVE)
 			{			
-				uint16_t bytesLeft = WAVE_RES * 4;
-				void *p = wavArray[curFIL];
-				
-				if(filBrowser[fType].curFile.fsize < bytesLeft) //if the file is smaller than expected, only read in the length of the file
-					bytesLeft = filBrowser[fType].curFile.fsize;
+				int bytesLeft = TABLE_FULL_SIZE * 4;
+				int fsize = 0;
+				int8_t* p = (int8_t*)wavArray[curOsc][curTbl];
 
-				while (bytesLeft > 0) 
+				off_t currentPos = lseek(filBrowser[fType].curFile, (size_t)0, SEEK_CUR);
+				fsize = (int)lseek(filBrowser[fType].curFile, (size_t)0, SEEK_END);
+				lseek(filBrowser[fType].curFile, currentPos, SEEK_SET);
+
+				//printf("file size %d (expected %d)\n", fsize, bytesLeft);
+
+				if (fsize < bytesLeft) //if the file is smaller than expected, only read in the length of the file
+					bytesLeft = fsize;
+
+				while (bytesLeft > 0)
 				{
-					if(f_read(&filBrowser[fType].curFile, p, 256, &bytesRead) != FR_OK) break; //load the file into the array piece by piece
-					else if (bytesRead < 256) break;
+					bytesRead = read(filBrowser[fType].curFile, p, bytesLeft);
 					bytesLeft -= bytesRead;
 					p += bytesRead;
-				} 		
+				}
+
+				//printf("success\n");
+				queueOscTbl(HARM_update, curOsc, curTbl);
+				//int bytesLeft = WAVE_RES * 4;
+				//int fsize = 0;
+				//int8_t *p = (int8_t *)wavArray[curOsc][curTbl];
+
+				//off_t currentPos = lseek(filBrowser[fType].curFile, (size_t)0, SEEK_CUR);
+				//fsize = (int)lseek(filBrowser[fType].curFile, (size_t)0, SEEK_END);
+				//lseek(filBrowser[fType].curFile, currentPos, SEEK_SET);
+				//
+				////printf("file size %d (expected %d)\n", fsize, bytesLeft);
+
+				//if(fsize < bytesLeft) //if the file is smaller than expected, only read in the length of the file
+				//	bytesLeft = fsize;
+
+				//while (bytesLeft > 0) 
+				//{
+				//	bytesRead = read(filBrowser[fType].curFile, p, bytesLeft);
+				//	bytesLeft -= bytesRead;
+				//	p += bytesRead;
+				//} 	
+
+				////printf("success\n");
+				//queueOscTbl(HARM_update, curOsc, curTbl);
 				
 			}
 			else if(fType == PATCH)
@@ -633,10 +700,8 @@ void __attribute__(( noinline )) checkFileQueue()
 				saveNameInd = strlen(curPatchFile->name)-1;	
 			}
 				
-			f_close(&filBrowser[fType].curFile);
+			close(filBrowser[fType].curFile);
 		} 
 	}
-	curFIL = indexIncrement(curFIL, 1, OSC_CNT + 1);
+	curFIL = indexIncrement(curFIL, 1, OSC_CNT * TABLE_CNT + 1);
 }
-
-#endif
